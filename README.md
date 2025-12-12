@@ -14,7 +14,37 @@ Not all AI instances are equal. Some are sharp, follow directions, and write bug
 
 This test catches the bad ones BEFORE you invest time.
 
-## Quick Start
+## Web App (Recommended)
+
+### Run Locally
+
+```bash
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
+
+### Deploy to Railway
+
+1. Create a new project in Railway
+2. Connect your GitHub repo
+3. Select this branch: `claude/test-limb-instances-011sk7LPdNpG8RwP4xqkhuKR`
+4. Add environment variables (optional):
+   - `OPENAI_API_KEY` - Your OpenAI API key
+   - `ANTHROPIC_API_KEY` - Your Anthropic API key
+   - `GOOGLE_API_KEY` - Your Google AI API key
+5. Deploy!
+
+Railway will auto-detect the Procfile and deploy the Streamlit app.
+
+### Supported AI Evaluators
+
+| Provider | Models |
+|----------|--------|
+| OpenAI | GPT-4.1, o3, o4-mini |
+| Anthropic | Claude Sonnet 4.5, Claude Opus 4.5 |
+| Google | Gemini 2.5 Pro, Gemini 2.5 Flash |
+
+## CLI Mode (Alternative)
 
 ```bash
 # Interactive mode
@@ -27,7 +57,7 @@ python limb_evaluator.py response.txt
 ## How It Works
 
 ### Step 1: Copy the test
-Run `python limb_test.py` and choose option [1] to see the test prompt. Copy it.
+Get the test prompt from the web app or run `python limb_test.py`
 
 ### Step 2: Paste to your AI agent
 Open a new session with Claude Code, Claude Web, Cursor, or any AI coding assistant. Paste the test prompt.
@@ -36,7 +66,7 @@ Open a new session with Claude Code, Claude Web, Cursor, or any AI coding assist
 When the agent finishes all 7 phases, copy its entire response.
 
 ### Step 4: Evaluate
-Run `python limb_test.py` again, choose option [2], and paste the response. You'll get a grade.
+Paste the response in the web app or CLI. Get your grade instantly.
 
 ## The 7 Phases
 
@@ -66,9 +96,12 @@ Run `python limb_test.py` again, choose option [2], and paste the response. You'
 
 ## Files
 
-- `limb_test.py` - Main launcher with menu
-- `limb_evaluator.py` - The evaluation engine (can run standalone)
-- `LIMB_TEST_PROMPT.md` - The test prompt to copy
+- `streamlit_app.py` - Web app with AI-powered evaluation
+- `limb_test.py` - CLI launcher with menu
+- `limb_evaluator.py` - Pattern-based evaluation engine
+- `LIMB_TEST_PROMPT.md` - The test prompt
+- `requirements.txt` - Python dependencies
+- `Procfile` - Railway deployment config
 
 ## Why "LIMB"?
 
