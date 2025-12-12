@@ -1,5 +1,5 @@
 """
-LIMB Test - AI Agent Warmup & Evaluation Tool
+AI Tester - AI Coding Agent Warmup & Evaluation Tool
 Web interface for testing AI coding agents before trusting them with real work.
 """
 
@@ -30,8 +30,8 @@ except ImportError:
 
 # Page config
 st.set_page_config(
-    page_title="LIMB Test - AI Agent Evaluator",
-    page_icon="🧪",
+    page_title="AI Tester - Agent Evaluator",
+    page_icon="🧠",
     layout="wide"
 )
 
@@ -472,8 +472,8 @@ def display_results(results, llm_tested, test_prompt, template_name=None):
 
 
 def main():
-    st.title("🧪 LIMB Test")
-    st.markdown("**L**ooks **I**ntelligent, **M**aybe **B**roken - AI Agent Warmup & Evaluation")
+    st.title("🧠 AI Tester")
+    st.markdown("**AI Coding Agent Warmup & Evaluation**")
 
     # Initialize session state
     if 'current_test_prompt' not in st.session_state:
