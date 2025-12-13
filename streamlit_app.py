@@ -766,28 +766,41 @@ def clear_history():
     conn.close()
 
 
-def copy_button_with_js(text_to_copy, button_text="📋 Copy", key=None, already_copied=False):
+def copy_button_with_js(text_to_copy, key=None, is_fresh=True):
     """Create a button that copies text to clipboard using JavaScript."""
-    import html
-    # Escape the text for JavaScript - handle newlines properly
-    escaped_text = text_to_copy.replace('\\', '\\\\').replace('`', '\\`').replace('$', '\\$')
+    import base64
+
+    # Base64 encode the text to avoid any escaping issues
+    encoded_text = base64.b64encode(text_to_copy.encode('utf-8')).decode('utf-8')
 
     # Create unique ID for this button
     button_id = f"copy_btn_{key or 'default'}"
 
-    # Different initial state based on whether already copied
-    if already_copied:
-        initial_class = "copy-btn copied"
-        initial_text = "📋 Copy Again"
+    # Different styles based on fresh or not
+    if is_fresh:
+        # Green glowing button
+        button_style = """
+            background: linear-gradient(90deg, #00c853, #00e676);
+            animation: glow 1.5s ease-in-out infinite;
+        """
+        button_text = "📋 Copy"
     else:
-        initial_class = "copy-btn"
-        initial_text = button_text
+        # Orange "already copied" button
+        button_style = """
+            background: linear-gradient(90deg, #ff9800, #ffc107);
+            animation: none;
+            box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+        """
+        button_text = "📋 Copied"
 
-    # JavaScript to copy to clipboard
     copy_js = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
     <style>
+    body {{ margin: 0; padding: 0; }}
     .copy-btn {{
-        background: linear-gradient(90deg, #00c853, #00e676);
+        {button_style}
         border: none;
         color: white;
         padding: 15px 30px;
@@ -796,24 +809,11 @@ def copy_button_with_js(text_to_copy, button_text="📋 Copy", key=None, already
         font-weight: bold;
         cursor: pointer;
         width: 100%;
-        animation: glow 1.5s ease-in-out infinite;
         transition: all 0.3s ease;
     }}
     .copy-btn:hover {{
         transform: scale(1.02);
         filter: brightness(1.1);
-    }}
-    .copy-btn.copied {{
-        background: linear-gradient(90deg, #ff9800, #ffc107);
-        animation: none;
-        box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
-    }}
-    .copy-btn.copied:hover {{
-        background: linear-gradient(90deg, #f57c00, #ffb300);
-    }}
-    .copy-btn.just-copied {{
-        background: linear-gradient(90deg, #4CAF50, #8BC34A);
-        animation: none;
     }}
     @keyframes glow {{
         0% {{ box-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00, 0 0 15px #00ff00; }}
@@ -821,22 +821,31 @@ def copy_button_with_js(text_to_copy, button_text="📋 Copy", key=None, already
         100% {{ box-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00, 0 0 15px #00ff00; }}
     }}
     </style>
-    <button class="{initial_class}" id="{button_id}" onclick="
-        navigator.clipboard.writeText(`{escaped_text}`).then(() => {{
+    </head>
+    <body>
+    <button class="copy-btn" id="{button_id}" onclick="copyText()">{button_text}</button>
+    <script>
+    function copyText() {{
+        var encoded = "{encoded_text}";
+        var text = atob(encoded);
+        navigator.clipboard.writeText(text).then(function() {{
             var btn = document.getElementById('{button_id}');
             btn.innerText = '✅ Copied!';
-            btn.classList.remove('copy-btn');
-            btn.classList.add('copy-btn', 'just-copied');
-            setTimeout(() => {{
-                btn.innerText = '📋 Copy Again';
-                btn.classList.remove('just-copied');
-                btn.classList.add('copied');
+            btn.style.background = 'linear-gradient(90deg, #4CAF50, #8BC34A)';
+            btn.style.animation = 'none';
+            setTimeout(function() {{
+                btn.innerText = '📋 Copied';
+                btn.style.background = 'linear-gradient(90deg, #ff9800, #ffc107)';
+                btn.style.boxShadow = '0 0 10px rgba(255, 152, 0, 0.5)';
             }}, 1500);
-        }}).catch(err => {{
+        }}).catch(function(err) {{
             console.error('Copy failed:', err);
-            document.getElementById('{button_id}').innerText = '❌ Copy failed - try again';
+            document.getElementById('{button_id}').innerText = '❌ Failed';
         }});
-    ">{initial_text}</button>
+    }}
+    </script>
+    </body>
+    </html>
     """
     return copy_js
 
@@ -1138,11 +1147,8 @@ def main():
         st.markdown("")
         if 'test_variants' in st.session_state:
             test_to_copy = st.session_state.get('generated_test', st.session_state.current_test_prompt)
-            already_copied = not st.session_state.test_is_fresh
-            copy_html = copy_button_with_js(test_to_copy, "📋 COPY TEST TO CLIPBOARD", "create_tab", already_copied)
+            copy_html = copy_button_with_js(test_to_copy, "create_tab", st.session_state.test_is_fresh)
             st.components.v1.html(copy_html, height=70)
-            if already_copied:
-                st.caption("🔄 Want a new test? Click **Regenerate Test** above")
         else:
             st.info("👆 Click **Regenerate Test** to create a fresh test")
 
@@ -1247,11 +1253,8 @@ def main():
         test_to_use = st.session_state.get('generated_test', st.session_state.current_test_prompt)
 
         if 'test_variants' in st.session_state:
-            already_copied = not st.session_state.test_is_fresh
-            copy_html = copy_button_with_js(test_to_use, "📋 COPY TEST TO CLIPBOARD", "eval_tab", already_copied)
+            copy_html = copy_button_with_js(test_to_use, "eval_tab", st.session_state.test_is_fresh)
             st.components.v1.html(copy_html, height=70)
-            if already_copied:
-                st.caption("🔄 Want a new test? Click **Generate Fresh Test** above")
         else:
             st.info("👆 Click **Generate Fresh Test** to create a test")
 
