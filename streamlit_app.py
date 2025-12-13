@@ -7,6 +7,7 @@ import streamlit as st
 import json
 import os
 import random
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 
@@ -38,11 +39,125 @@ st.set_page_config(
 
 # Data directories
 DATA_DIR = Path("data")
+DATABASE_FILE = DATA_DIR / "ai_tester.db"
+# Legacy JSON files (for migration)
 TEMPLATES_FILE = DATA_DIR / "templates.json"
 HISTORY_FILE = DATA_DIR / "history.json"
 
 # Ensure data directory exists
 DATA_DIR.mkdir(exist_ok=True)
+
+
+def get_db_connection():
+    """Get a connection to the SQLite database."""
+    conn = sqlite3.connect(DATABASE_FILE)
+    conn.row_factory = sqlite3.Row  # Return rows as dictionaries
+    return conn
+
+
+def init_database():
+    """Initialize the SQLite database with required tables."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Create history table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            llm_tested TEXT NOT NULL,
+            result TEXT NOT NULL,
+            score INTEGER,
+            summary TEXT,
+            template TEXT,
+            phases TEXT,
+            test_prompt TEXT,
+            response TEXT
+        )
+    """)
+
+    # Create templates table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL,
+            prompt TEXT NOT NULL,
+            criteria TEXT,
+            description TEXT,
+            category TEXT,
+            created TEXT NOT NULL
+        )
+    """)
+
+    # Create index for faster lookups
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_history_timestamp ON history(timestamp DESC)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_history_llm ON history(llm_tested)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_history_result ON history(result)")
+
+    conn.commit()
+    conn.close()
+
+    # Migrate from JSON if database is empty and JSON files exist
+    migrate_from_json()
+
+
+def migrate_from_json():
+    """Migrate existing JSON data to SQLite (one-time operation)."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Check if history is empty
+    cursor.execute("SELECT COUNT(*) FROM history")
+    if cursor.fetchone()[0] == 0 and HISTORY_FILE.exists():
+        try:
+            with open(HISTORY_FILE, 'r') as f:
+                history = json.load(f)
+            for entry in history:
+                cursor.execute("""
+                    INSERT INTO history (timestamp, llm_tested, result, score, summary, template, phases)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    entry.get('timestamp', datetime.now().isoformat()),
+                    entry.get('llm_tested', 'Unknown'),
+                    entry.get('result', 'SKIP'),
+                    entry.get('score', 0),
+                    entry.get('summary', ''),
+                    entry.get('template', 'Default'),
+                    json.dumps(entry.get('phases', []))
+                ))
+            conn.commit()
+            print(f"Migrated {len(history)} history entries from JSON")
+        except Exception as e:
+            print(f"Could not migrate history: {e}")
+
+    # Check if templates is empty
+    cursor.execute("SELECT COUNT(*) FROM templates")
+    if cursor.fetchone()[0] == 0 and TEMPLATES_FILE.exists():
+        try:
+            with open(TEMPLATES_FILE, 'r') as f:
+                templates = json.load(f)
+            for name, data in templates.items():
+                cursor.execute("""
+                    INSERT INTO templates (name, prompt, criteria, description, category, created)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    name,
+                    data.get('prompt', ''),
+                    data.get('criteria', ''),
+                    data.get('description', ''),
+                    data.get('category', 'General'),
+                    data.get('created', datetime.now().isoformat())
+                ))
+            conn.commit()
+            print(f"Migrated {len(templates)} templates from JSON")
+        except Exception as e:
+            print(f"Could not migrate templates: {e}")
+
+    conn.close()
+
+
+# Initialize database on module load
+init_database()
 
 # Model configurations
 MODELS = {
@@ -514,47 +629,141 @@ DEFAULT_EVALUATION_CRITERIA = """
 
 
 def load_templates():
-    """Load templates from JSON file."""
-    if TEMPLATES_FILE.exists():
-        try:
-            with open(TEMPLATES_FILE, 'r') as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            return {}
-    return {}
+    """Load templates from SQLite database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, prompt, criteria, description, category, created FROM templates")
+    rows = cursor.fetchall()
+    conn.close()
+
+    templates = {}
+    for row in rows:
+        templates[row['name']] = {
+            'prompt': row['prompt'],
+            'criteria': row['criteria'],
+            'description': row['description'],
+            'category': row['category'],
+            'created': row['created']
+        }
+    return templates
 
 
-def save_templates(templates):
-    """Save templates to JSON file."""
-    with open(TEMPLATES_FILE, 'w') as f:
-        json.dump(templates, f, indent=2)
+def save_template(name, prompt, criteria, description, category):
+    """Save a single template to SQLite database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT OR REPLACE INTO templates (name, prompt, criteria, description, category, created)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (name, prompt, criteria, description, category, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
 
 
-def load_history():
-    """Load test history from JSON file."""
-    if HISTORY_FILE.exists():
-        try:
-            with open(HISTORY_FILE, 'r') as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            return []
-    return []
+def delete_template(name):
+    """Delete a template from SQLite database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM templates WHERE name = ?", (name,))
+    conn.commit()
+    conn.close()
 
 
-def save_history(history):
-    """Save test history to JSON file."""
-    with open(HISTORY_FILE, 'w') as f:
-        json.dump(history, f, indent=2)
+def load_history(limit=None, llm_filter=None, result_filter=None):
+    """Load test history from SQLite database with optional filters."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    query = "SELECT * FROM history"
+    params = []
+    conditions = []
+
+    if llm_filter and llm_filter != "All":
+        conditions.append("llm_tested = ?")
+        params.append(llm_filter)
+    if result_filter and result_filter != "All":
+        conditions.append("result = ?")
+        params.append(result_filter)
+
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+
+    query += " ORDER BY timestamp DESC"
+
+    if limit:
+        query += f" LIMIT {limit}"
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+    conn.close()
+
+    history = []
+    for row in rows:
+        history.append({
+            'id': row['id'],
+            'timestamp': row['timestamp'],
+            'llm_tested': row['llm_tested'],
+            'result': row['result'],
+            'score': row['score'],
+            'summary': row['summary'],
+            'template': row['template'],
+            'phases': json.loads(row['phases']) if row['phases'] else [],
+            'test_prompt': row['test_prompt'],
+            'response': row['response']
+        })
+    return history
 
 
-def add_to_history(entry):
+def get_history_stats():
+    """Get summary statistics from history."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) as total FROM history")
+    total = cursor.fetchone()['total']
+
+    cursor.execute("SELECT COUNT(*) as count FROM history WHERE result IN ('GO', 'GO_WITH_CHECKS')")
+    passed = cursor.fetchone()['count']
+
+    cursor.execute("SELECT COUNT(*) as count FROM history WHERE result IN ('SKIP', 'CRITICAL_FAIL')")
+    failed = cursor.fetchone()['count']
+
+    cursor.execute("SELECT DISTINCT llm_tested FROM history")
+    llms = [row['llm_tested'] for row in cursor.fetchall()]
+
+    conn.close()
+    return {'total': total, 'passed': passed, 'failed': failed, 'llms': llms}
+
+
+def add_to_history(entry, test_prompt=None, response=None):
     """Add a test result to history."""
-    history = load_history()
-    entry['timestamp'] = datetime.now().isoformat()
-    history.insert(0, entry)  # Most recent first
-    # Keep last 100 entries
-    history = history[:100]
-    save_history(history)
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO history (timestamp, llm_tested, result, score, summary, template, phases, test_prompt, response)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        datetime.now().isoformat(),
+        entry.get('llm_tested', 'Unknown'),
+        entry.get('result', 'SKIP'),
+        entry.get('score', 0),
+        entry.get('summary', ''),
+        entry.get('template', 'Default'),
+        json.dumps(entry.get('phases', [])),
+        test_prompt,
+        response
+    ))
+    conn.commit()
+    conn.close()
+
+
+def clear_history():
+    """Clear all history from database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM history")
+    conn.commit()
+    conn.close()
 
 
 def generate_test_prompt(base_prompt, project_description=None, include_project_phase=True):
@@ -662,7 +871,7 @@ def evaluate_with_gemini(api_key, model, test_prompt, response, eval_criteria):
     return json.loads(result_text.strip())
 
 
-def display_results(results, llm_tested, test_prompt, template_name=None):
+def display_results(results, llm_tested, test_prompt, response=None, template_name=None):
     """Display evaluation results and save to history."""
     st.markdown("---")
     st.header("Evaluation Results")
@@ -728,7 +937,7 @@ def display_results(results, llm_tested, test_prompt, template_name=None):
         "template": template_name or "Default",
         "phases": phases
     }
-    add_to_history(history_entry)
+    add_to_history(history_entry, test_prompt=test_prompt, response=response)
 
     st.success("📝 Result saved to history")
 
@@ -974,7 +1183,7 @@ def main():
                         else:
                             results = evaluate_with_gemini(api_key, model, test_to_use, response, st.session_state.current_eval_criteria)
 
-                        display_results(results, llm_tested, test_to_use)
+                        display_results(results, llm_tested, test_to_use, response)
 
                     except json.JSONDecodeError as e:
                         st.error(f"Failed to parse evaluation: {e}")
@@ -1005,15 +1214,13 @@ def main():
             )
 
             if st.button("💾 Save Template", disabled=not template_name):
-                templates = load_templates()
-                templates[template_name] = {
-                    "prompt": st.session_state.current_test_prompt,
-                    "criteria": st.session_state.current_eval_criteria,
-                    "description": template_desc,
-                    "category": template_category,
-                    "created": datetime.now().isoformat()
-                }
-                save_templates(templates)
+                save_template(
+                    template_name,
+                    st.session_state.current_test_prompt,
+                    st.session_state.current_eval_criteria,
+                    template_desc,
+                    template_category
+                )
                 st.success(f"Saved template: {template_name}")
                 st.rerun()
 
@@ -1037,8 +1244,7 @@ def main():
                                 st.rerun()
                         with col_b:
                             if st.button("🗑️ Delete", key=f"del_{name}"):
-                                del templates[name]
-                                save_templates(templates)
+                                delete_template(name)
                                 st.success(f"Deleted: {name}")
                                 st.rerun()
             else:
@@ -1103,7 +1309,7 @@ def main():
 
             st.markdown("---")
             if st.button("🗑️ Clear History"):
-                save_history([])
+                clear_history()
                 st.success("History cleared")
                 st.rerun()
         else:
