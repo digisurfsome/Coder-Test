@@ -851,19 +851,12 @@ def copy_button_with_js(text_to_copy, key=None, is_fresh=True):
 
     # Different styles based on fresh or not
     if is_fresh:
-        # Green glowing button
-        button_style = """
-            background: linear-gradient(90deg, #00c853, #00e676);
-            animation: glow 1.5s ease-in-out infinite;
-        """
+        # Solid green with subtle outer glow
+        button_class = "copy-btn fresh"
         button_text = "📋 Copy"
     else:
         # Orange "already copied" button
-        button_style = """
-            background: linear-gradient(90deg, #ff9800, #ffc107);
-            animation: none;
-            box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
-        """
+        button_class = "copy-btn copied"
         button_text = "📋 Copied"
 
     copy_js = f"""
@@ -871,32 +864,38 @@ def copy_button_with_js(text_to_copy, key=None, is_fresh=True):
     <html>
     <head>
     <style>
-    body {{ margin: 0; padding: 0; }}
+    body {{ margin: 0; padding: 5px; background: transparent; }}
     .copy-btn {{
-        {button_style}
         border: none;
         color: white;
-        padding: 15px 30px;
-        border-radius: 10px;
-        font-size: 18px;
-        font-weight: bold;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
         cursor: pointer;
         width: 100%;
         transition: all 0.3s ease;
     }}
+    .copy-btn.fresh {{
+        background: #2e7d32;
+        animation: subtle-glow 2s ease-in-out infinite;
+    }}
+    .copy-btn.copied {{
+        background: #f57c00;
+        box-shadow: none;
+    }}
     .copy-btn:hover {{
-        transform: scale(1.02);
         filter: brightness(1.1);
     }}
-    @keyframes glow {{
-        0% {{ box-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00, 0 0 15px #00ff00; }}
-        50% {{ box-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00, 0 0 30px #00ff00, 0 0 40px #00ff00; }}
-        100% {{ box-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00, 0 0 15px #00ff00; }}
+    @keyframes subtle-glow {{
+        0% {{ box-shadow: 0 0 8px rgba(76, 175, 80, 0.4); }}
+        50% {{ box-shadow: 0 0 15px rgba(76, 175, 80, 0.7), 0 0 25px rgba(76, 175, 80, 0.4); }}
+        100% {{ box-shadow: 0 0 8px rgba(76, 175, 80, 0.4); }}
     }}
     </style>
     </head>
     <body>
-    <button class="copy-btn" id="{button_id}" onclick="copyText()">{button_text}</button>
+    <button class="{button_class}" id="{button_id}" onclick="copyText()">{button_text}</button>
     <script>
     function copyText() {{
         var encoded = "{encoded_text}";
@@ -904,13 +903,10 @@ def copy_button_with_js(text_to_copy, key=None, is_fresh=True):
         navigator.clipboard.writeText(text).then(function() {{
             var btn = document.getElementById('{button_id}');
             btn.innerText = '✅ Copied!';
-            btn.style.background = 'linear-gradient(90deg, #4CAF50, #8BC34A)';
-            btn.style.animation = 'none';
+            btn.className = 'copy-btn copied';
             setTimeout(function() {{
                 btn.innerText = '📋 Copied';
-                btn.style.background = 'linear-gradient(90deg, #ff9800, #ffc107)';
-                btn.style.boxShadow = '0 0 10px rgba(255, 152, 0, 0.5)';
-            }}, 1500);
+            }}, 1000);
         }}).catch(function(err) {{
             console.error('Copy failed:', err);
             document.getElementById('{button_id}').innerText = '❌ Failed';
