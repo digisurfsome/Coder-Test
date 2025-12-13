@@ -747,24 +747,51 @@ def main():
     with st.sidebar:
         st.header("⚙️ Configuration")
 
+        # Initialize persistent settings in session state
+        if 'selected_provider' not in st.session_state:
+            st.session_state.selected_provider = "Anthropic"  # Default
+        if 'selected_model_idx' not in st.session_state:
+            st.session_state.selected_model_idx = 0
+
         # Provider selection for evaluator
         provider = st.selectbox(
             "Evaluator AI Provider",
-            options=["OpenAI", "Anthropic", "Google"],
-            help="AI that will grade the responses"
+            options=["Anthropic", "OpenAI", "Google"],
+            index=["Anthropic", "OpenAI", "Google"].index(st.session_state.selected_provider),
+            help="AI that will grade the responses",
+            key="provider_select"
         )
+        st.session_state.selected_provider = provider
 
         model_options = MODELS.get(provider, {})
+        model_keys = list(model_options.keys())
         model_display = st.selectbox(
             "Evaluator Model",
-            options=list(model_options.keys())
+            options=model_keys,
+            index=min(st.session_state.selected_model_idx, len(model_keys)-1),
+            key="model_select"
         )
+        st.session_state.selected_model_idx = model_keys.index(model_display) if model_display in model_keys else 0
         model = model_options.get(model_display, "")
 
-        # API Key
+        # API Key - check env vars first
         env_key_map = {"OpenAI": "OPENAI_API_KEY", "Anthropic": "ANTHROPIC_API_KEY", "Google": "GOOGLE_API_KEY"}
-        default_key = os.environ.get(env_key_map.get(provider, ""), "")
-        api_key = st.text_input(f"{provider} API Key", value=default_key, type="password")
+        env_var_name = env_key_map.get(provider, "")
+        env_api_key = os.environ.get(env_var_name, "")
+
+        if env_api_key:
+            # API key found in environment
+            st.success(f"✅ {provider} API Key configured")
+            api_key = env_api_key
+        else:
+            # No env var, ask for manual input
+            api_key = st.text_input(
+                f"{provider} API Key",
+                type="password",
+                help=f"Set {env_var_name} in Railway env vars to auto-fill"
+            )
+            if not api_key:
+                st.warning(f"⚠️ Set {env_var_name} in Railway")
 
         st.markdown("---")
 
@@ -789,115 +816,98 @@ def main():
     with tab1:
         st.header("Create or Customize Test")
 
-        col1, col2 = st.columns([1, 1])
+        st.info("💡 **Quick Start:** Just go to the **Evaluate** tab and click **Generate Fresh Test**. Each click creates a new random test!")
 
+        st.markdown("---")
+
+        # Main action - Generate new test
+        col1, col2 = st.columns([2, 1])
         with col1:
-            st.subheader("Project Description")
-            project_desc = st.text_area(
-                "What are you about to build?",
-                height=150,
-                placeholder="Describe the project you're going to work on with this AI agent...\n\nExample: Building a React dashboard with real-time data from a PostgreSQL database, using WebSockets for live updates.",
-                help="This helps generate project-specific test questions"
-            )
-
-            include_project_phase = st.checkbox(
-                "Add project-specific assessment phase",
-                value=True if project_desc else False,
-                help="Adds a phase that asks the AI about your specific project"
-            )
-
+            st.subheader("🎲 Generate Random Test")
+            st.markdown("Creates a new test with random questions (different fake tech, different contradictions, different code challenges)")
         with col2:
-            st.subheader("Quick Actions")
-
-            # REGENERATE TEST BUTTON - Creates new random variants
-            st.markdown("##### 🎲 Generate New Test")
-            if st.button("🎲 Regenerate Test", type="primary", help="Create a new test with different questions but same criteria"):
+            if st.button("🎲 Regenerate Test", type="primary", use_container_width=True):
                 new_prompt, new_criteria, variants = generate_randomized_test()
                 st.session_state.current_test_prompt = new_prompt
                 st.session_state.current_eval_criteria = new_criteria
                 st.session_state.test_variants = variants
-                st.success(f"New test generated!")
-                st.info(f"🔍 Fake tech: {variants['fake_tech']}\n\n📋 Testing: {variants['function']} function")
+                st.session_state.generated_test = new_prompt
                 st.rerun()
 
-            # Show current test variants if available
-            if 'test_variants' in st.session_state:
-                with st.expander("Current test uses:"):
-                    v = st.session_state.test_variants
-                    st.markdown(f"- **Fake tech:** {v.get('fake_tech', 'N/A')}")
-                    st.markdown(f"- **Contradiction:** {v.get('contradiction', 'N/A')}")
-                    st.markdown(f"- **Function:** {v.get('function', 'N/A')}")
-
-            st.markdown("---")
-
-            # Template loading
-            templates = load_templates()
-            if templates:
-                template_choice = st.selectbox(
-                    "Load from template",
-                    options=["-- Select --"] + list(templates.keys())
-                )
-                if template_choice != "-- Select --":
-                    if st.button("📂 Load Template"):
-                        template = templates[template_choice]
-                        st.session_state.current_test_prompt = template.get("prompt", BASE_PROMPT_TEMPLATE)
-                        st.session_state.current_eval_criteria = template.get("criteria", DEFAULT_EVALUATION_CRITERIA)
-                        st.success(f"Loaded template: {template_choice}")
-                        st.rerun()
-
-            if st.button("🔄 Reset to Default"):
-                st.session_state.current_test_prompt = BASE_PROMPT_TEMPLATE.replace("{num_phases}", "7")
-                st.session_state.current_eval_criteria = DEFAULT_EVALUATION_CRITERIA
-                if 'test_variants' in st.session_state:
-                    del st.session_state.test_variants
-                st.success("Reset to default")
-                st.rerun()
+        # Show current test info
+        if 'test_variants' in st.session_state:
+            v = st.session_state.test_variants
+            st.success(f"🎯 **Current Test:** Fake tech = `{v.get('fake_tech', 'N/A')}` | Contradiction = `{v.get('contradiction', 'N/A')[:40]}...` | Function = `{v.get('function', 'N/A')}`")
 
         st.markdown("---")
 
-        # Editable base prompt
-        st.subheader("Test Prompt (Editable)")
-        edited_prompt = st.text_area(
-            "Base test prompt",
-            value=st.session_state.current_test_prompt,
-            height=400,
-            help="Edit the test prompt directly. This is what gets sent to the AI agent."
-        )
-        st.session_state.current_test_prompt = edited_prompt
+        # Optional: Project-specific testing
+        with st.expander("➕ Add Project-Specific Questions (Optional)"):
+            project_desc = st.text_area(
+                "What are you about to build?",
+                height=100,
+                placeholder="Describe the project... (optional - adds an extra phase to the test)",
+                help="This adds an 8th phase asking about your specific project"
+            )
+            include_project_phase = st.checkbox(
+                "Include project-specific phase",
+                value=bool(project_desc),
+            )
 
-        # Evaluation criteria
-        with st.expander("📋 Evaluation Criteria (Click to edit)"):
-            edited_criteria = st.text_area(
-                "How should responses be graded?",
-                value=st.session_state.current_eval_criteria,
+        # Advanced: Edit test directly (collapsed by default)
+        with st.expander("🔧 Advanced: Edit Test Directly"):
+            edited_prompt = st.text_area(
+                "Test Prompt",
+                value=st.session_state.current_test_prompt,
                 height=300,
-                help="Define what PASS/FAIL means for each phase"
+            )
+            st.session_state.current_test_prompt = edited_prompt
+
+            st.markdown("##### Answer Key (Evaluation Criteria)")
+            edited_criteria = st.text_area(
+                "How to grade responses",
+                value=st.session_state.current_eval_criteria,
+                height=200,
             )
             st.session_state.current_eval_criteria = edited_criteria
 
-        # Generate final prompt
+        # Templates section (collapsed)
+        with st.expander("📁 Templates"):
+            col1, col2 = st.columns(2)
+            with col1:
+                templates = load_templates()
+                if templates:
+                    template_choice = st.selectbox(
+                        "Load template",
+                        options=["-- Select --"] + list(templates.keys())
+                    )
+                    if template_choice != "-- Select --" and st.button("📂 Load"):
+                        template = templates[template_choice]
+                        st.session_state.current_test_prompt = template.get("prompt", BASE_PROMPT_TEMPLATE)
+                        st.session_state.current_eval_criteria = template.get("criteria", DEFAULT_EVALUATION_CRITERIA)
+                        st.rerun()
+                else:
+                    st.info("No templates saved yet")
+            with col2:
+                if st.button("🔄 Reset to Default"):
+                    st.session_state.current_test_prompt = BASE_PROMPT_TEMPLATE.replace("{num_phases}", "7")
+                    st.session_state.current_eval_criteria = DEFAULT_EVALUATION_CRITERIA
+                    if 'test_variants' in st.session_state:
+                        del st.session_state.test_variants
+                    st.rerun()
+
+        # Show current test prompt
         st.markdown("---")
-        st.subheader("Generated Test Prompt")
+        st.subheader("📋 Current Test (Copy This)")
 
         final_prompt = generate_test_prompt(
-            edited_prompt,
+            st.session_state.current_test_prompt,
             project_desc if include_project_phase else None,
             include_project_phase
         )
 
         st.code(final_prompt, language="markdown")
-
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("📋 Copy Test Prompt", type="primary"):
-                st.code(final_prompt)
-                st.info("Use Ctrl+C / Cmd+C to copy the text above")
-
-        with col2:
-            # Store for evaluation tab
-            if st.button("➡️ Use This Test"):
-                st.session_state.generated_test = final_prompt
-                st.success("Test prompt ready! Go to 'Evaluate' tab")
+        st.info("👆 Copy the test above and paste it to any LLM you want to evaluate, or go to **Evaluate** tab for the full workflow")
 
     # TAB 2: Evaluate
     with tab2:
