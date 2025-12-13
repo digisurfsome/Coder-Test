@@ -167,8 +167,8 @@ MODELS = {
         "o4-mini": "o4-mini",
     },
     "Anthropic": {
-        "Claude Sonnet 4.5": "claude-sonnet-4-5-20250929",
         "Claude Opus 4.5": "claude-opus-4-5-20251101",
+        "Claude Sonnet 4.5": "claude-sonnet-4-5-20250929",
     },
     "Google": {
         "Gemini 2.5 Pro": "gemini-2.5-pro-preview-06-05",
@@ -1036,8 +1036,8 @@ def main():
         # Initialize persistent settings in session state
         if 'selected_provider' not in st.session_state:
             st.session_state.selected_provider = "Anthropic"  # Default
-        if 'selected_model_idx' not in st.session_state:
-            st.session_state.selected_model_idx = 0
+        if 'selected_model' not in st.session_state:
+            st.session_state.selected_model = "Claude Opus 4.5"  # Default to Opus
 
         # Provider selection for evaluator
         provider = st.selectbox(
@@ -1051,13 +1051,21 @@ def main():
 
         model_options = MODELS.get(provider, {})
         model_keys = list(model_options.keys())
+
+        # Get saved model index, default to first (Opus for Anthropic)
+        saved_model = st.session_state.selected_model
+        if saved_model in model_keys:
+            default_idx = model_keys.index(saved_model)
+        else:
+            default_idx = 0
+
         model_display = st.selectbox(
             "Evaluator Model",
             options=model_keys,
-            index=min(st.session_state.selected_model_idx, len(model_keys)-1),
+            index=default_idx,
             key="model_select"
         )
-        st.session_state.selected_model_idx = model_keys.index(model_display) if model_display in model_keys else 0
+        st.session_state.selected_model = model_display  # Save model NAME, not index
         model = model_options.get(model_display, "")
 
         # API Key - check env vars first
