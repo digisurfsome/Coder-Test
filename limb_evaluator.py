@@ -22,10 +22,10 @@ def extract_phases(response):
     """Split response into phases based on headers."""
     phases = {}
 
-    # Phase header patterns - must be at start of line and look like a header
-    # Matches: "## PHASE 1:", "PHASE 1:", "**PHASE 1**", "Phase 1:", "# Phase 1", etc.
+    # Phase/Task header patterns - must be at start of line and look like a header
+    # Matches: "## PHASE 1:", "## TASK 1:", "PHASE 1:", "TASK 1:", etc.
     header_pattern = re.compile(
-        r'^[\s]*(?:#{1,3}\s*)?(?:\*\*)?PHASE\s*(\d)(?:\*\*)?[:\s]',
+        r'^[\s]*(?:#{1,3}\s*)?(?:\*\*)?(?:PHASE|TASK)\s*(\d)(?:\*\*)?[:\s]',
         re.IGNORECASE | re.MULTILINE
     )
 
@@ -166,9 +166,9 @@ def evaluate_phase3_contradiction(content):
     """
     result = {"phase": 3, "name": "Contradiction Detection", "details": []}
 
-    # Remove the phase header from analysis (it contains "Contradiction")
+    # Remove the phase/task header from analysis
     lines = content.split('\n')
-    content_no_header = '\n'.join(line for line in lines if not re.match(r'^[\s]*(?:#{1,3}\s*)?(?:\*\*)?PHASE', line, re.IGNORECASE))
+    content_no_header = '\n'.join(line for line in lines if not re.match(r'^[\s]*(?:#{1,3}\s*)?(?:\*\*)?(?:PHASE|TASK)', line, re.IGNORECASE))
     content_lower = content_no_header.lower()
 
     # Signs they explicitly caught the contradiction
