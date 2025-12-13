@@ -946,11 +946,49 @@ def main():
     st.title("🧠 AI Tester")
     st.markdown("**AI Coding Agent Warmup & Evaluation**")
 
+    # CSS for glowing copy button
+    st.markdown("""
+    <style>
+    @keyframes glow {
+        0% { box-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00, 0 0 15px #00ff00; }
+        50% { box-shadow: 0 0 10px #00ff00, 0 0 20px #00ff00, 0 0 30px #00ff00, 0 0 40px #00ff00; }
+        100% { box-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00, 0 0 15px #00ff00; }
+    }
+    .glow-button {
+        animation: glow 1.5s ease-in-out infinite;
+        background: linear-gradient(90deg, #00c853, #00e676) !important;
+        border: none !important;
+        color: white !important;
+        font-weight: bold !important;
+        padding: 0.75rem 1.5rem !important;
+        border-radius: 8px !important;
+        font-size: 1.1rem !important;
+    }
+    .glow-button:hover {
+        transform: scale(1.02);
+    }
+    .used-button {
+        background: #555 !important;
+        color: #999 !important;
+        cursor: not-allowed !important;
+    }
+    .fresh-test-box {
+        border: 3px solid #00ff00;
+        border-radius: 10px;
+        padding: 1rem;
+        background: rgba(0, 255, 0, 0.05);
+        animation: glow 2s ease-in-out infinite;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     # Initialize session state
     if 'current_test_prompt' not in st.session_state:
         st.session_state.current_test_prompt = BASE_PROMPT_TEMPLATE.replace("{num_phases}", "7")
     if 'current_eval_criteria' not in st.session_state:
         st.session_state.current_eval_criteria = DEFAULT_EVALUATION_CRITERIA
+    if 'test_is_fresh' not in st.session_state:
+        st.session_state.test_is_fresh = False  # No fresh test until they generate one
 
     # Sidebar for configuration
     with st.sidebar:
@@ -1041,12 +1079,44 @@ def main():
                 st.session_state.current_eval_criteria = new_criteria
                 st.session_state.test_variants = variants
                 st.session_state.generated_test = new_prompt
+                st.session_state.test_is_fresh = True  # Mark as fresh/unused
                 st.rerun()
 
         # Show current test info
         if 'test_variants' in st.session_state:
             v = st.session_state.test_variants
             st.success(f"🎯 **Current Test:** Fake tech = `{v.get('fake_tech', 'N/A')}` | Contradiction = `{v.get('contradiction', 'N/A')[:40]}...` | Function = `{v.get('function', 'N/A')}`")
+
+        # COPY BUTTON - Only works for fresh tests
+        st.markdown("")
+        if st.session_state.test_is_fresh:
+            # Glowing copy button for fresh test
+            st.markdown('<div class="fresh-test-box">', unsafe_allow_html=True)
+            st.markdown("### ✨ Fresh Test Ready!")
+            if st.button("📋 COPY TEST TO CLIPBOARD", type="primary", use_container_width=True, key="copy_fresh"):
+                st.session_state.test_is_fresh = False  # Mark as used
+                st.session_state.show_test_to_copy = True
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            # Greyed out - need to generate new test
+            st.markdown("---")
+            if 'test_variants' in st.session_state:
+                st.warning("⚠️ Test already copied. Click **Regenerate Test** above for a fresh one!")
+            else:
+                st.info("👆 Click **Regenerate Test** to create a fresh test")
+
+        # Show test prompt when copy is clicked
+        if st.session_state.get('show_test_to_copy', False):
+            st.markdown("---")
+            st.markdown("### 📋 Copy the test below:")
+            test_to_copy = st.session_state.get('generated_test', st.session_state.current_test_prompt)
+            st.code(test_to_copy, language="markdown")
+            st.info("👆 Click the copy icon in the top-right of the code block, then paste to any LLM!")
+            # Clear the flag after showing
+            if st.button("✅ Done - Hide Test"):
+                st.session_state.show_test_to_copy = False
+                st.rerun()
 
         st.markdown("---")
 
@@ -1136,6 +1206,8 @@ def main():
                 st.session_state.current_eval_criteria = new_criteria
                 st.session_state.test_variants = variants
                 st.session_state.generated_test = new_prompt
+                st.session_state.test_is_fresh = True  # Mark as fresh
+                st.session_state.show_test_to_copy = False  # Reset copy view
                 st.rerun()
 
         # Show current test info
@@ -1143,12 +1215,27 @@ def main():
             v = st.session_state.test_variants
             st.success(f"🎯 Current test: Fake tech = **{v.get('fake_tech', 'N/A')}** | Function = **{v.get('function', 'N/A')}**")
 
-        # Show the test prompt being used
+        # COPY BUTTON - Only works for fresh tests
         test_to_use = st.session_state.get('generated_test', st.session_state.current_test_prompt)
 
-        with st.expander("📋 Test Prompt (Copy this to the LLM)", expanded=True):
+        if st.session_state.test_is_fresh:
+            # Glowing copy section for fresh test
+            st.markdown('<div class="fresh-test-box">', unsafe_allow_html=True)
+            st.markdown("### ✨ Fresh Test Ready to Copy!")
+            if st.button("📋 COPY TEST", type="primary", use_container_width=True, key="copy_fresh_eval"):
+                st.session_state.test_is_fresh = False
+                st.session_state.show_test_to_copy_eval = True
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+        elif st.session_state.get('show_test_to_copy_eval', False):
+            # Show the test to copy
+            st.markdown("### 📋 Copy this test:")
             st.code(test_to_use, language="markdown")
-            st.info("👆 Copy the test above, paste it to the LLM you want to test, then paste their response below")
+            st.info("👆 Click the copy icon in the top-right, then paste to any LLM!")
+        else:
+            # Already used - show collapsed
+            with st.expander("📋 Test Prompt (already copied - generate fresh for new test)", expanded=False):
+                st.code(test_to_use, language="markdown")
 
         st.markdown("---")
         st.markdown("### Step 2: Paste the LLM's Response")
