@@ -766,6 +766,56 @@ def clear_history():
     conn.close()
 
 
+def copy_button_with_js(text_to_copy, button_text="📋 Copy", key=None):
+    """Create a button that copies text to clipboard using JavaScript."""
+    import html
+    # Escape the text for JavaScript
+    escaped_text = html.escape(text_to_copy).replace('`', '\\`').replace('$', '\\$')
+
+    # Create unique ID for this button
+    button_id = f"copy_btn_{key or 'default'}"
+
+    # JavaScript to copy to clipboard
+    copy_js = f"""
+    <style>
+    .copy-btn {{
+        background: linear-gradient(90deg, #00c853, #00e676);
+        border: none;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        width: 100%;
+        animation: glow 1.5s ease-in-out infinite;
+    }}
+    .copy-btn:hover {{
+        transform: scale(1.02);
+    }}
+    .copy-btn.copied {{
+        background: #4CAF50;
+        animation: none;
+    }}
+    @keyframes glow {{
+        0% {{ box-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00; }}
+        50% {{ box-shadow: 0 0 15px #00ff00, 0 0 25px #00ff00, 0 0 35px #00ff00; }}
+        100% {{ box-shadow: 0 0 5px #00ff00, 0 0 10px #00ff00; }}
+    }}
+    </style>
+    <button class="copy-btn" id="{button_id}" onclick="
+        navigator.clipboard.writeText(`{escaped_text}`).then(() => {{
+            document.getElementById('{button_id}').innerText = '✅ Copied!';
+            document.getElementById('{button_id}').classList.add('copied');
+        }}).catch(err => {{
+            console.error('Copy failed:', err);
+            document.getElementById('{button_id}').innerText = '❌ Copy failed';
+        }});
+    ">{button_text}</button>
+    """
+    return copy_js
+
+
 def generate_test_prompt(base_prompt, project_description=None, include_project_phase=True):
     """Generate a complete test prompt, optionally with project-specific phase."""
     prompt = base_prompt
@@ -1090,14 +1140,18 @@ def main():
         # COPY BUTTON - Only works for fresh tests
         st.markdown("")
         if st.session_state.test_is_fresh:
-            # Glowing copy button for fresh test
+            # Glowing copy button for fresh test - ACTUALLY COPIES
+            test_to_copy = st.session_state.get('generated_test', st.session_state.current_test_prompt)
             st.markdown('<div class="fresh-test-box">', unsafe_allow_html=True)
             st.markdown("### ✨ Fresh Test Ready!")
-            if st.button("📋 COPY TEST TO CLIPBOARD", type="primary", use_container_width=True, key="copy_fresh"):
-                st.session_state.test_is_fresh = False  # Mark as used
-                st.session_state.show_test_to_copy = True
-                st.rerun()
+            # Real copy button using JavaScript
+            copy_html = copy_button_with_js(test_to_copy, "📋 COPY TEST TO CLIPBOARD", "create_tab")
+            st.components.v1.html(copy_html, height=60)
             st.markdown('</div>', unsafe_allow_html=True)
+            # Button to mark as used after copying
+            if st.button("✅ I've copied it - Mark as Used", use_container_width=True, key="mark_used_create"):
+                st.session_state.test_is_fresh = False
+                st.rerun()
         else:
             # Greyed out - need to generate new test
             st.markdown("---")
@@ -1105,18 +1159,6 @@ def main():
                 st.warning("⚠️ Test already copied. Click **Regenerate Test** above for a fresh one!")
             else:
                 st.info("👆 Click **Regenerate Test** to create a fresh test")
-
-        # Show test prompt when copy is clicked
-        if st.session_state.get('show_test_to_copy', False):
-            st.markdown("---")
-            st.markdown("### 📋 Copy the test below:")
-            test_to_copy = st.session_state.get('generated_test', st.session_state.current_test_prompt)
-            st.code(test_to_copy, language="markdown")
-            st.info("👆 Click the copy icon in the top-right of the code block, then paste to any LLM!")
-            # Clear the flag after showing
-            if st.button("✅ Done - Hide Test"):
-                st.session_state.show_test_to_copy = False
-                st.rerun()
 
         st.markdown("---")
 
@@ -1219,19 +1261,17 @@ def main():
         test_to_use = st.session_state.get('generated_test', st.session_state.current_test_prompt)
 
         if st.session_state.test_is_fresh:
-            # Glowing copy section for fresh test
+            # Glowing copy section for fresh test - ACTUALLY COPIES
             st.markdown('<div class="fresh-test-box">', unsafe_allow_html=True)
             st.markdown("### ✨ Fresh Test Ready to Copy!")
-            if st.button("📋 COPY TEST", type="primary", use_container_width=True, key="copy_fresh_eval"):
-                st.session_state.test_is_fresh = False
-                st.session_state.show_test_to_copy_eval = True
-                st.rerun()
+            # Real copy button using JavaScript
+            copy_html = copy_button_with_js(test_to_use, "📋 COPY TEST TO CLIPBOARD", "eval_tab")
+            st.components.v1.html(copy_html, height=60)
             st.markdown('</div>', unsafe_allow_html=True)
-        elif st.session_state.get('show_test_to_copy_eval', False):
-            # Show the test to copy
-            st.markdown("### 📋 Copy this test:")
-            st.code(test_to_use, language="markdown")
-            st.info("👆 Click the copy icon in the top-right, then paste to any LLM!")
+            # Button to mark as used after copying
+            if st.button("✅ I've copied it - Mark as Used", use_container_width=True, key="mark_used_eval"):
+                st.session_state.test_is_fresh = False
+                st.rerun()
         else:
             # Already used - show collapsed
             with st.expander("📋 Test Prompt (already copied - generate fresh for new test)", expanded=False):
