@@ -903,13 +903,36 @@ def main():
     with tab2:
         st.header("Evaluate Agent Response")
 
+        # Quick test generation right in the Evaluate tab
+        col1, col2 = st.columns([2, 1])
+
+        with col1:
+            st.markdown("### Step 1: Get a Fresh Test")
+            st.markdown("Click to generate a new random test (different questions each time)")
+
+        with col2:
+            if st.button("🎲 Generate Fresh Test", type="primary", use_container_width=True):
+                new_prompt, new_criteria, variants = generate_randomized_test()
+                st.session_state.current_test_prompt = new_prompt
+                st.session_state.current_eval_criteria = new_criteria
+                st.session_state.test_variants = variants
+                st.session_state.generated_test = new_prompt
+                st.rerun()
+
+        # Show current test info
+        if 'test_variants' in st.session_state:
+            v = st.session_state.test_variants
+            st.success(f"🎯 Current test: Fake tech = **{v.get('fake_tech', 'N/A')}** | Function = **{v.get('function', 'N/A')}**")
+
         # Show the test prompt being used
         test_to_use = st.session_state.get('generated_test', st.session_state.current_test_prompt)
 
-        with st.expander("📋 Test Prompt Being Used"):
+        with st.expander("📋 Test Prompt (Copy this to the LLM)", expanded=True):
             st.code(test_to_use, language="markdown")
+            st.info("👆 Copy the test above, paste it to the LLM you want to test, then paste their response below")
 
-        st.subheader("Paste Agent Response")
+        st.markdown("---")
+        st.markdown("### Step 2: Paste the LLM's Response")
         response = st.text_area(
             "Agent's complete response",
             height=400,
@@ -921,7 +944,10 @@ def main():
             response = uploaded_file.read().decode("utf-8")
             st.text_area("Loaded response:", value=response[:500] + "...", height=100, disabled=True)
 
-        if st.button("🔍 Evaluate Response", type="primary", disabled=not response or not api_key):
+        st.markdown("---")
+        st.markdown("### Step 3: Evaluate")
+
+        if st.button("🔍 Evaluate Response", type="primary", disabled=not response or not api_key, use_container_width=True):
             if not api_key:
                 st.error("Please enter your API key in the sidebar")
             elif not response:
