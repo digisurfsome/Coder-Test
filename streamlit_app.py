@@ -920,22 +920,19 @@ def copy_button_with_js(text_to_copy, key=None, is_fresh=True):
 
 
 def paste_and_evaluate_button():
-    """Create a button that pastes from clipboard and triggers evaluation via URL redirect."""
-    import urllib.parse
-
-    # Get current URL base
+    """Create a button that does 4 things: Clear, Paste from clipboard, Evaluate, Collapse."""
     paste_js = """
     <!DOCTYPE html>
     <html>
     <head>
     <style>
-    body { margin: 0; padding: 5px; background: transparent; }
+    body { margin: 0; padding: 2px; background: transparent; }
     .paste-eval-btn {
         border: none;
         color: white;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-size: 16px;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-size: 13px;
         font-weight: 600;
         cursor: pointer;
         width: 100%;
@@ -943,64 +940,63 @@ def paste_and_evaluate_button():
         transition: all 0.3s ease;
         animation: pulse-blue 2s ease-in-out infinite;
     }
-    .paste-eval-btn:hover {
-        filter: brightness(1.1);
-    }
-    .paste-eval-btn.working {
-        background: #7b1fa2;
-        animation: none;
-    }
-    .paste-eval-btn.error {
-        background: #d32f2f;
-        animation: none;
-    }
+    .paste-eval-btn:hover { filter: brightness(1.1); }
+    .paste-eval-btn.working { background: #7b1fa2; animation: none; }
+    .paste-eval-btn.error { background: #d32f2f; animation: none; }
     @keyframes pulse-blue {
-        0% { box-shadow: 0 0 8px rgba(25, 118, 210, 0.4); }
-        50% { box-shadow: 0 0 15px rgba(25, 118, 210, 0.7), 0 0 25px rgba(25, 118, 210, 0.4); }
-        100% { box-shadow: 0 0 8px rgba(25, 118, 210, 0.4); }
+        0% { box-shadow: 0 0 5px rgba(25, 118, 210, 0.4); }
+        50% { box-shadow: 0 0 10px rgba(25, 118, 210, 0.6); }
+        100% { box-shadow: 0 0 5px rgba(25, 118, 210, 0.4); }
     }
     </style>
     </head>
     <body>
-    <button class="paste-eval-btn" id="paste_eval_btn" onclick="pasteAndEval()">📋 Paste & Evaluate</button>
+    <button class="paste-eval-btn" id="paste_eval_btn" onclick="pasteAndEval()">📋 Paste & Go</button>
     <script>
     async function pasteAndEval() {
         var btn = document.getElementById('paste_eval_btn');
-        btn.innerText = '⏳ Reading clipboard...';
+        btn.innerText = '⏳ Reading...';
         btn.className = 'paste-eval-btn working';
 
         try {
-            var text = await navigator.clipboard.readText();
+            // Try parent window's clipboard first (same origin), then fallback to iframe's
+            var text;
+            try {
+                text = await window.parent.navigator.clipboard.readText();
+            } catch(e) {
+                text = await navigator.clipboard.readText();
+            }
+
             if (!text || text.trim() === '') {
-                btn.innerText = '❌ Clipboard empty';
+                btn.innerText = '❌ Empty';
                 btn.className = 'paste-eval-btn error';
                 setTimeout(function() {
-                    btn.innerText = '📋 Paste & Evaluate';
+                    btn.innerText = '📋 Paste & Go';
                     btn.className = 'paste-eval-btn';
-                }, 2000);
+                }, 1500);
                 return;
             }
 
-            btn.innerText = '✅ Got it! Evaluating...';
+            btn.innerText = '✅ Evaluating...';
 
-            // Store in sessionStorage for Streamlit to pick up
+            // Store in parent's sessionStorage
             var encoded = btoa(unescape(encodeURIComponent(text)));
-            sessionStorage.setItem('clipboard_text', encoded);
-            sessionStorage.setItem('auto_evaluate', 'true');
+            window.parent.sessionStorage.setItem('clipboard_text', encoded);
+            window.parent.sessionStorage.setItem('auto_evaluate', 'true');
 
-            // Redirect with query param to trigger reload
+            // Redirect with query param to trigger reload and auto-evaluate
             var url = new URL(window.parent.location.href);
-            url.searchParams.set('clipboard_ready', Date.now());
+            url.searchParams.set('auto_eval', Date.now());
             window.parent.location.href = url.toString();
 
         } catch(err) {
             console.error('Clipboard read failed:', err);
-            btn.innerText = '❌ Clipboard access denied';
+            btn.innerText = '❌ Denied';
             btn.className = 'paste-eval-btn error';
             setTimeout(function() {
-                btn.innerText = '📋 Paste & Evaluate';
+                btn.innerText = '📋 Paste & Go';
                 btn.className = 'paste-eval-btn';
-            }, 3000);
+            }, 2000);
         }
     }
     </script>
@@ -1008,37 +1004,6 @@ def paste_and_evaluate_button():
     </html>
     """
     return paste_js
-
-
-def get_clipboard_from_session_storage():
-    """JavaScript to retrieve clipboard text from sessionStorage."""
-    return """
-    <script>
-    (function() {
-        var encoded = sessionStorage.getItem('clipboard_text');
-        var autoEval = sessionStorage.getItem('auto_evaluate');
-
-        if (encoded && autoEval === 'true') {
-            try {
-                var text = decodeURIComponent(escape(atob(encoded)));
-                // Find the Streamlit text area and set its value
-                var textareas = window.parent.document.querySelectorAll('textarea');
-                textareas.forEach(function(ta) {
-                    if (ta.placeholder && ta.placeholder.includes('Paste the full test exchange')) {
-                        ta.value = text;
-                        ta.dispatchEvent(new Event('input', { bubbles: true }));
-                    }
-                });
-                // Clear the flags
-                sessionStorage.removeItem('clipboard_text');
-                sessionStorage.removeItem('auto_evaluate');
-            } catch(e) {
-                console.error('Failed to restore clipboard:', e);
-            }
-        }
-    })();
-    </script>
-    """
 
 
 def generate_test_prompt(base_prompt, project_description=None, include_project_phase=True):
@@ -1211,61 +1176,48 @@ def evaluate_combined_gemini(api_key, model, full_exchange):
 
 
 def display_results(results, llm_tested, test_prompt, response=None, template_name=None):
-    """Display evaluation results and save to history."""
-    st.markdown("---")
-    st.header("Evaluation Results")
-
-    # Phase results
+    """Display compact evaluation results and save to history."""
+    # Phase results in a tight grid
     phases = results.get("phases", [])
-
-    cols = st.columns(2)
-    for i, phase in enumerate(phases):
-        col = cols[i % 2]
-        with col:
-            status = phase.get("status", "UNKNOWN")
-            name = phase.get("name", f"Phase {phase.get('phase', i+1)}")
-            reason = phase.get("reason", "No details")
-            critical = phase.get("critical", False)
-
-            icon = {"PASS": "✅", "CONCERN": "⚠️", "FAIL": "❌"}.get(status, "?")
-            color = {"PASS": "green", "CONCERN": "orange", "FAIL": "red"}.get(status, "gray")
-            critical_badge = " 🚨" if critical else ""
-
-            st.markdown(f"### {icon} {name}{critical_badge}")
-            st.markdown(f"**Status:** :{color}[{status}]")
-            st.markdown(f"*{reason}*")
-            st.markdown("")
-
-    # Overall verdict
-    st.markdown("---")
     overall = results.get("overall", {})
     result_type = overall.get("result", "SKIP")
     score = overall.get("score", 0)
-    summary = overall.get("summary", "No summary available")
-
+    summary = overall.get("summary", "No summary")
     result_info = RESULT_TYPES.get(result_type, RESULT_TYPES["SKIP"])
 
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Score", f"{score} points")
-    with col2:
-        st.metric("Result", f"{result_info['icon']} {result_type.replace('_', ' ')}")
-    with col3:
-        st.metric("LLM Tested", llm_tested)
-
-    # Result message
+    # Big verdict at top
     if result_type == "GO":
-        st.success(f"✅ **GO** - {summary}")
-        st.balloons()
+        st.success(f"✅ **GO** ({score}pts) - {summary}")
     elif result_type == "GO_WITH_CHECKS":
-        st.info(f"✅ **GO WITH CHECKS** - {summary}")
+        st.info(f"✅ **GO+CHECKS** ({score}pts) - {summary}")
     elif result_type == "SIMPLE_ONLY":
-        st.warning(f"⚠️ **SIMPLE ONLY** - {summary}")
+        st.warning(f"⚠️ **SIMPLE ONLY** ({score}pts) - {summary}")
     elif result_type == "CRITICAL_FAIL":
-        st.error(f"🚫 **CRITICAL FAIL** - {summary}")
-        st.warning("⚠️ This agent hallucinated or missed critical issues. Get a new instance!")
+        st.error(f"🚫 **CRITICAL FAIL** ({score}pts) - {summary}")
     else:
-        st.error(f"❌ **SKIP** - {summary}")
+        st.error(f"❌ **SKIP** ({score}pts) - {summary}")
+
+    # Compact phase results - 4 columns
+    cols = st.columns(4)
+    for i, phase in enumerate(phases):
+        col = cols[i % 4]
+        with col:
+            status = phase.get("status", "?")
+            name = phase.get("name", f"T{phase.get('phase', i+1)}")
+            # Shorten name
+            short_name = name[:12] + ".." if len(name) > 14 else name
+            icon = {"PASS": "✅", "CONCERN": "⚠️", "FAIL": "❌"}.get(status, "?")
+            critical = "🚨" if phase.get("critical", False) else ""
+            st.markdown(f"{icon} **{short_name}**{critical}")
+
+    # Show reasons in expander
+    with st.expander("📋 Details", expanded=False):
+        for phase in phases:
+            status = phase.get("status", "?")
+            name = phase.get("name", "?")
+            reason = phase.get("reason", "")
+            icon = {"PASS": "✅", "CONCERN": "⚠️", "FAIL": "❌"}.get(status, "?")
+            st.markdown(f"{icon} **{name}**: {reason}")
 
     # Save to history
     history_entry = {
@@ -1277,22 +1229,62 @@ def display_results(results, llm_tested, test_prompt, response=None, template_na
         "phases": phases
     }
     add_to_history(history_entry, test_prompt=test_prompt, response=response)
-
-    st.success("📝 Result saved to history")
+    st.caption("💾 Saved")
 
 
 def main():
-    # Reduce top padding
+    # Aggressive CSS to tighten everything up - minimal padding, smaller text
     st.markdown("""
     <style>
-    .block-container { padding-top: 1rem !important; }
-    header { visibility: hidden; }
-    #MainMenu { visibility: hidden; }
+    /* Remove all top padding */
+    .block-container { padding-top: 0 !important; padding-bottom: 0 !important; }
+    header { display: none !important; }
+    #MainMenu { display: none !important; }
+    footer { display: none !important; }
+
+    /* Tighter spacing throughout */
+    .stTabs [data-baseweb="tab-list"] { gap: 2px; }
+    .stTabs [data-baseweb="tab"] { padding: 4px 12px; font-size: 13px; }
+
+    /* Smaller headers */
+    h1 { font-size: 1.5rem !important; margin: 0 !important; padding: 0 !important; }
+    h2 { font-size: 1.1rem !important; margin: 0.3rem 0 !important; }
+    h3 { font-size: 0.95rem !important; margin: 0.2rem 0 !important; }
+
+    /* Compact text */
+    p, .stMarkdown { font-size: 13px !important; margin: 0.1rem 0 !important; }
+    .stAlert { padding: 0.4rem !important; font-size: 12px !important; }
+
+    /* Compact metrics */
+    [data-testid="metric-container"] { padding: 0.3rem !important; }
+    [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
+    [data-testid="stMetricLabel"] { font-size: 11px !important; }
+
+    /* Compact expander */
+    .streamlit-expanderHeader { font-size: 13px !important; padding: 0.3rem !important; }
+    .streamlit-expanderContent { padding: 0.3rem !important; }
+
+    /* Compact buttons */
+    .stButton button { padding: 0.3rem 0.8rem !important; font-size: 13px !important; }
+
+    /* Tighter columns */
+    [data-testid="column"] { padding: 0.2rem !important; }
+
+    /* Smaller text areas */
+    .stTextArea textarea { font-size: 12px !important; }
+    .stTextArea label { font-size: 12px !important; }
+
+    /* Compact sidebar */
+    .css-1d391kg { padding: 0.5rem !important; }
+    .sidebar .stSelectbox label { font-size: 12px !important; }
+
+    /* Reduce vertical gaps */
+    .element-container { margin-bottom: 0.2rem !important; }
+    div[data-testid="stVerticalBlock"] > div { gap: 0.2rem !important; }
     </style>
     """, unsafe_allow_html=True)
 
-    st.title("🧠 AI Tester")
-    st.markdown("**AI Coding Agent Warmup & Evaluation**")
+    st.markdown("### 🧠 AI Tester")
 
     # Initialize session state
     if 'current_test_prompt' not in st.session_state:
@@ -1494,76 +1486,98 @@ def main():
 
     # TAB 2: Evaluate
     with tab2:
-        # Check for clipboard data from query params (from Paste & Evaluate button)
-        query_params = st.query_params
-        clipboard_ready = query_params.get("clipboard_ready", None)
+        # Check for auto-eval trigger from Paste & Go button
+        auto_eval_trigger = st.query_params.get("auto_eval", None)
+        clipboard_text_from_js = None
 
-        # Header row with title and action buttons
-        col_title, col_paste, col_clear = st.columns([2, 1, 1])
-        with col_title:
-            st.header("Evaluate Agent Response")
-        with col_paste:
-            # Blue "Paste & Evaluate" button - reads clipboard and triggers evaluation
-            paste_html = paste_and_evaluate_button()
-            st.components.v1.html(paste_html, height=55)
-        with col_clear:
-            if st.button("🔄 Clear", type="secondary", use_container_width=True):
-                st.session_state.pasted_text = ""
-                st.session_state.show_paste_area = True
-                st.session_state.auto_evaluate = False
-                # Clear query params
+        # If auto-eval was triggered, get clipboard from sessionStorage via JS injection
+        if auto_eval_trigger:
+            # Inject JS to read from sessionStorage and populate a hidden div
+            st.components.v1.html("""
+            <script>
+            (function() {
+                var encoded = window.parent.sessionStorage.getItem('clipboard_text');
+                if (encoded) {
+                    var text = decodeURIComponent(escape(atob(encoded)));
+                    // Store decoded text for Python to pick up via query param
+                    var url = new URL(window.parent.location.href);
+                    url.searchParams.delete('auto_eval');
+                    url.searchParams.set('pasted_data', encoded);
+                    window.parent.location.replace(url.toString());
+                }
+            })();
+            </script>
+            """, height=0)
+
+        # Check if we have pasted data ready
+        pasted_data_encoded = st.query_params.get("pasted_data", None)
+        if pasted_data_encoded:
+            import base64
+            try:
+                clipboard_text_from_js = base64.b64decode(pasted_data_encoded).decode('utf-8')
+                st.session_state.pasted_text = clipboard_text_from_js
+                st.session_state.show_paste_area = False  # Collapse immediately
+                st.session_state.auto_evaluate = True
+                # Clear the query param
                 st.query_params.clear()
-                st.rerun()
+                # Clear sessionStorage via JS
+                st.components.v1.html("""<script>window.parent.sessionStorage.removeItem('clipboard_text');window.parent.sessionStorage.removeItem('auto_evaluate');</script>""", height=0)
+            except:
+                pass
 
-        # Handle clipboard data restoration from sessionStorage
-        if clipboard_ready:
-            st.components.v1.html(get_clipboard_from_session_storage(), height=0)
-            st.info("📋 Clipboard content loaded! Click **Evaluate** below or paste manually if needed.")
-            # Clear the query param
-            st.query_params.clear()
+        # Header row - just title and the Paste & Go button
+        col_title, col_paste = st.columns([3, 1])
+        with col_title:
+            st.markdown("#### Evaluate Response")
+        with col_paste:
+            paste_html = paste_and_evaluate_button()
+            st.components.v1.html(paste_html, height=40)
 
-        # Collapsible paste area
-        with st.expander("📋 Paste Test Exchange", expanded=st.session_state.show_paste_area):
+        # Collapsible paste area (collapsed if auto-eval)
+        with st.expander("📋 Paste Area", expanded=st.session_state.show_paste_area):
             full_exchange = st.text_area(
-                "Paste questions + answers here",
+                "",
                 value=st.session_state.pasted_text,
-                height=250,
-                placeholder="Paste the full test exchange (questions AND answers together)...\n\nOr use the blue 'Paste & Evaluate' button above to auto-paste from clipboard!",
-                key="paste_area"
+                height=150,
+                placeholder="Paste test exchange here, or use Paste & Go button above",
+                key="paste_area",
+                label_visibility="collapsed"
             )
-            # Update session state
             st.session_state.pasted_text = full_exchange
 
-        # Evaluate button
-        if st.button("🔍 Evaluate", type="primary", disabled=not full_exchange or not api_key, use_container_width=True):
-            if not api_key:
-                st.error("Please enter your API key in the sidebar")
-            elif not full_exchange:
-                st.error("Please paste the test exchange")
-            elif not llm_tested:
-                st.error("Please select which LLM you're testing in the sidebar")
-            else:
-                # Collapse the paste area to show results
-                st.session_state.show_paste_area = False
+        # Auto-evaluate if triggered
+        should_evaluate = st.session_state.get('auto_evaluate', False) and st.session_state.pasted_text
+        if should_evaluate:
+            st.session_state.auto_evaluate = False  # Reset flag
 
-                with st.spinner(f"Evaluating with {model_display}..."):
+        # Evaluate button OR auto-trigger
+        if should_evaluate or st.button("🔍 Evaluate", type="primary", disabled=not full_exchange or not api_key, use_container_width=True):
+            if not api_key:
+                st.error("Enter API key in sidebar")
+            elif not (full_exchange or st.session_state.pasted_text):
+                st.error("Paste test exchange first")
+            else:
+                st.session_state.show_paste_area = False
+                text_to_eval = full_exchange or st.session_state.pasted_text
+
+                with st.spinner(f"Evaluating..."):
                     try:
                         if provider == "OpenAI":
-                            results = evaluate_combined_openai(api_key, model, full_exchange)
+                            results = evaluate_combined_openai(api_key, model, text_to_eval)
                         elif provider == "Anthropic":
-                            results = evaluate_combined_anthropic(api_key, model, full_exchange)
+                            results = evaluate_combined_anthropic(api_key, model, text_to_eval)
                         else:
-                            results = evaluate_combined_gemini(api_key, model, full_exchange)
+                            results = evaluate_combined_gemini(api_key, model, text_to_eval)
 
-                        display_results(results, llm_tested, full_exchange)
+                        display_results(results, llm_tested, text_to_eval)
 
                     except json.JSONDecodeError as e:
-                        st.error(f"Failed to parse evaluation: {e}")
+                        st.error(f"Parse error: {e}")
                     except Exception as e:
-                        st.error(f"Evaluation failed: {e}")
+                        st.error(f"Failed: {e}")
 
         if not api_key:
-            st.warning("⚠️ Enter your API key in the sidebar to enable evaluation")
+            st.warning("⚠️ API key required")
 
     # TAB 3: Templates
     with tab3:
