@@ -1259,47 +1259,50 @@ def main():
 
     /* Tighter spacing throughout */
     .stTabs [data-baseweb="tab-list"] { gap: 2px; }
-    .stTabs [data-baseweb="tab"] { padding: 4px 12px; font-size: 13px; }
+    .stTabs [data-baseweb="tab"] { padding: 4px 8px; font-size: 11px; }
 
     /* Smaller headers */
-    h1 { font-size: 1.5rem !important; margin: 0 !important; padding: 0 !important; }
-    h2 { font-size: 1.1rem !important; margin: 0.3rem 0 !important; }
-    h3 { font-size: 0.95rem !important; margin: 0.2rem 0 !important; }
+    h1 { font-size: 1.3rem !important; margin: 0 !important; padding: 0 !important; }
+    h2 { font-size: 1rem !important; margin: 0.2rem 0 !important; }
+    h3 { font-size: 0.9rem !important; margin: 0.1rem 0 !important; }
+    h4 { font-size: 0.85rem !important; margin: 0.1rem 0 !important; }
 
     /* Compact text */
-    p, .stMarkdown { font-size: 13px !important; margin: 0.1rem 0 !important; }
-    .stAlert { padding: 0.4rem !important; font-size: 12px !important; }
+    p, .stMarkdown { font-size: 12px !important; margin: 0 !important; }
+    .stAlert { padding: 0.3rem !important; font-size: 11px !important; }
 
     /* Compact metrics */
-    [data-testid="metric-container"] { padding: 0.3rem !important; }
-    [data-testid="stMetricValue"] { font-size: 1.1rem !important; }
-    [data-testid="stMetricLabel"] { font-size: 11px !important; }
+    [data-testid="metric-container"] { padding: 0.2rem !important; }
+    [data-testid="stMetricValue"] { font-size: 1rem !important; }
+    [data-testid="stMetricLabel"] { font-size: 10px !important; }
 
     /* Compact expander */
-    .streamlit-expanderHeader { font-size: 13px !important; padding: 0.3rem !important; }
-    .streamlit-expanderContent { padding: 0.3rem !important; }
+    .streamlit-expanderHeader { font-size: 11px !important; padding: 0.2rem !important; }
+    .streamlit-expanderContent { padding: 0.2rem !important; }
 
     /* Compact buttons */
-    .stButton button { padding: 0.3rem 0.8rem !important; font-size: 13px !important; }
+    .stButton button { padding: 0.2rem 0.5rem !important; font-size: 11px !important; }
 
     /* Tighter columns */
-    [data-testid="column"] { padding: 0.2rem !important; }
+    [data-testid="column"] { padding: 0.1rem !important; }
 
     /* Smaller text areas */
-    .stTextArea textarea { font-size: 12px !important; }
-    .stTextArea label { font-size: 12px !important; }
+    .stTextArea textarea { font-size: 11px !important; }
+    .stTextArea label { font-size: 11px !important; }
 
-    /* Compact sidebar */
-    .css-1d391kg { padding: 0.5rem !important; }
-    .sidebar .stSelectbox label { font-size: 12px !important; }
+    /* Compact code blocks */
+    .stCodeBlock { font-size: 10px !important; }
+    pre { margin: 0 !important; padding: 0.3rem !important; }
 
     /* Reduce vertical gaps */
-    .element-container { margin-bottom: 0.2rem !important; }
-    div[data-testid="stVerticalBlock"] > div { gap: 0.2rem !important; }
+    .element-container { margin-bottom: 0.1rem !important; }
+    div[data-testid="stVerticalBlock"] > div { gap: 0.1rem !important; }
+
+    /* Compact selectbox */
+    .stSelectbox { margin-bottom: 0 !important; }
+    .stSelectbox label { font-size: 11px !important; }
     </style>
     """, unsafe_allow_html=True)
-
-    st.markdown("### 🧠 AI Tester")
 
     # Initialize session state
     if 'current_test_prompt' not in st.session_state:
@@ -1307,7 +1310,7 @@ def main():
     if 'current_eval_criteria' not in st.session_state:
         st.session_state.current_eval_criteria = DEFAULT_EVALUATION_CRITERIA
     if 'test_is_fresh' not in st.session_state:
-        st.session_state.test_is_fresh = False  # No fresh test until they generate one
+        st.session_state.test_is_fresh = False
     if 'pasted_text' not in st.session_state:
         st.session_state.pasted_text = ""
     if 'show_paste_area' not in st.session_state:
@@ -1315,276 +1318,142 @@ def main():
     if 'auto_evaluate' not in st.session_state:
         st.session_state.auto_evaluate = False
 
-    # Sidebar for configuration
+    # Sidebar - compact config
     with st.sidebar:
-        st.header("⚙️ Configuration")
+        st.markdown("#### ⚙️ Config")
 
-        # Initialize persistent settings in session state
         if 'selected_provider' not in st.session_state:
-            st.session_state.selected_provider = "Anthropic"  # Default
+            st.session_state.selected_provider = "Anthropic"
         if 'selected_model' not in st.session_state:
-            st.session_state.selected_model = "Claude Opus 4.5"  # Default to Opus
+            st.session_state.selected_model = "Claude Opus 4.5"
 
-        # Provider selection for evaluator
-        provider = st.selectbox(
-            "Evaluator AI Provider",
-            options=["Anthropic", "OpenAI", "Google"],
-            index=["Anthropic", "OpenAI", "Google"].index(st.session_state.selected_provider),
-            help="AI that will grade the responses",
-            key="provider_select"
-        )
+        provider = st.selectbox("Provider", ["Anthropic", "OpenAI", "Google"],
+            index=["Anthropic", "OpenAI", "Google"].index(st.session_state.selected_provider), key="provider_select")
         st.session_state.selected_provider = provider
 
         model_options = MODELS.get(provider, {})
         model_keys = list(model_options.keys())
-
-        # Get saved model index, default to first (Opus for Anthropic)
         saved_model = st.session_state.selected_model
-        if saved_model in model_keys:
-            default_idx = model_keys.index(saved_model)
-        else:
-            default_idx = 0
-
-        model_display = st.selectbox(
-            "Evaluator Model",
-            options=model_keys,
-            index=default_idx,
-            key="model_select"
-        )
-        st.session_state.selected_model = model_display  # Save model NAME, not index
+        default_idx = model_keys.index(saved_model) if saved_model in model_keys else 0
+        model_display = st.selectbox("Model", model_keys, index=default_idx, key="model_select")
+        st.session_state.selected_model = model_display
         model = model_options.get(model_display, "")
 
-        # API Key - check env vars first
         env_key_map = {"OpenAI": "OPENAI_API_KEY", "Anthropic": "ANTHROPIC_API_KEY", "Google": "GOOGLE_API_KEY"}
-        env_var_name = env_key_map.get(provider, "")
-        env_api_key = os.environ.get(env_var_name, "")
-
+        env_api_key = os.environ.get(env_key_map.get(provider, ""), "")
         if env_api_key:
-            # API key found in environment
-            st.success(f"✅ {provider} API Key configured")
+            st.success(f"✅ API Key set")
             api_key = env_api_key
         else:
-            # No env var, ask for manual input
-            api_key = st.text_input(
-                f"{provider} API Key",
-                type="password",
-                help=f"Set {env_var_name} in Railway env vars to auto-fill"
-            )
-            if not api_key:
-                st.warning(f"⚠️ Set {env_var_name} in Railway")
+            api_key = st.text_input("API Key", type="password")
 
         st.markdown("---")
-
-        # LLM being tested
-        st.subheader("🤖 LLM Under Test")
-        llm_tested = st.selectbox(
-            "Which LLM are you testing?",
-            options=LLMS_UNDER_TEST
-        )
+        llm_tested = st.selectbox("LLM Under Test", LLMS_UNDER_TEST)
         if llm_tested == "Other (specify)":
-            llm_tested = st.text_input("Enter LLM name")
+            llm_tested = st.text_input("LLM name")
 
-        st.markdown("---")
-        st.markdown("### Result Guide")
-        for key, info in RESULT_TYPES.items():
-            st.markdown(f"{info['icon']} **{key.replace('_', ' ')}**: {info['description']}")
+    # Check for auto-eval trigger BEFORE rendering main content
+    auto_eval_trigger = st.query_params.get("auto_eval", None)
+    if auto_eval_trigger:
+        st.session_state.pasted_text = ""
+        st.components.v1.html("""
+        <script>
+        (function() {
+            var encoded = window.parent.sessionStorage.getItem('clipboard_text');
+            if (encoded) {
+                var url = new URL(window.parent.location.href);
+                url.searchParams.delete('auto_eval');
+                url.searchParams.set('pasted_data', encoded);
+                window.parent.location.replace(url.toString());
+            } else {
+                var url = new URL(window.parent.location.href);
+                url.searchParams.delete('auto_eval');
+                window.parent.location.replace(url.toString());
+            }
+        })();
+        </script>
+        """, height=0)
+        st.stop()
 
-    # Main tabs
-    tab1, tab2, tab3, tab4 = st.tabs(["📝 Create Test", "📊 Evaluate", "📁 Templates", "📜 History"])
+    pasted_data_encoded = st.query_params.get("pasted_data", None)
+    if pasted_data_encoded:
+        import base64
+        try:
+            decoded_bytes = base64.b64decode(pasted_data_encoded)
+            clipboard_text = decoded_bytes.decode('utf-8')
+            st.session_state.pasted_text = clipboard_text
+            st.session_state.show_paste_area = False
+            st.session_state.auto_evaluate = True
+            st.query_params.clear()
+            st.components.v1.html("""<script>window.parent.sessionStorage.removeItem('clipboard_text');</script>""", height=0)
+        except Exception as e:
+            st.error(f"Decode error: {e}")
+            st.query_params.clear()
 
-    # TAB 1: Create Test
-    with tab1:
-        st.header("Create or Customize Test")
+    # Title
+    st.markdown("## 🧠 AI Tester")
 
-        st.info("💡 **Quick Start:** Just go to the **Evaluate** tab and click **Generate Fresh Test**. Each click creates a new random test!")
+    # MAIN LAYOUT: Two columns - Create Test | Evaluate
+    col_create, col_eval = st.columns([1, 1])
 
-        st.markdown("---")
+    # LEFT COLUMN: Create Test
+    with col_create:
+        st.markdown("#### 📝 Create Test")
 
-        # Main action - Generate new test
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            st.subheader("🎲 Generate Random Test")
-            st.markdown("Creates a new test with random questions (different fake tech, different contradictions, different code challenges)")
-        with col2:
-            if st.button("🎲 Regenerate Test", type="primary", use_container_width=True):
-                new_prompt, new_criteria, variants = generate_randomized_test()
-                st.session_state.current_test_prompt = new_prompt
-                st.session_state.current_eval_criteria = new_criteria
-                st.session_state.test_variants = variants
-                st.session_state.generated_test = new_prompt
-                st.session_state.test_is_fresh = True  # Mark as fresh/unused
-                st.rerun()
+        # Generate button
+        if st.button("🎲 Generate New Test", type="primary", use_container_width=True):
+            new_prompt, new_criteria, variants = generate_randomized_test()
+            st.session_state.current_test_prompt = new_prompt
+            st.session_state.current_eval_criteria = new_criteria
+            st.session_state.test_variants = variants
+            st.session_state.generated_test = new_prompt
+            st.session_state.test_is_fresh = True
+            st.rerun()
 
         # Show current test info
         if 'test_variants' in st.session_state:
             v = st.session_state.test_variants
-            st.success(f"🎯 **Current Test:** Fake tech = `{v.get('fake_tech', 'N/A')}` | Contradiction = `{v.get('contradiction', 'N/A')[:40]}...` | Function = `{v.get('function', 'N/A')}`")
+            st.caption(f"Fake: `{v.get('fake_tech', '?')[:20]}` | Func: `{v.get('function', '?')}`")
 
-        # COPY BUTTON - Glows green if fresh, orange if already copied (but still works)
-        st.markdown("")
+        # Copy button
         if 'test_variants' in st.session_state:
             test_to_copy = st.session_state.get('generated_test', st.session_state.current_test_prompt)
-            copy_html = copy_button_with_js(test_to_copy, "create_tab", st.session_state.test_is_fresh)
-            st.components.v1.html(copy_html, height=70)
-        else:
-            st.info("👆 Click **Regenerate Test** to create a fresh test")
+            copy_html = copy_button_with_js(test_to_copy, "main_copy", st.session_state.test_is_fresh)
+            st.components.v1.html(copy_html, height=50)
 
-        st.markdown("---")
+        # Show test in expander
+        with st.expander("📄 View Test", expanded=False):
+            st.code(st.session_state.current_test_prompt[:500] + "...", language="markdown")
 
-        # Optional: Project-specific testing
-        with st.expander("➕ Add Project-Specific Questions (Optional)"):
-            project_desc = st.text_area(
-                "What are you about to build?",
-                height=100,
-                placeholder="Describe the project... (optional - adds an extra phase to the test)",
-                help="This adds an 8th phase asking about your specific project"
-            )
-            include_project_phase = st.checkbox(
-                "Include project-specific phase",
-                value=bool(project_desc),
-            )
+    # RIGHT COLUMN: Evaluate
+    with col_eval:
+        st.markdown("#### 📊 Evaluate")
 
-        # Advanced: Edit test directly (collapsed by default)
-        with st.expander("🔧 Advanced: Edit Test Directly"):
-            edited_prompt = st.text_area(
-                "Test Prompt",
-                value=st.session_state.current_test_prompt,
-                height=300,
-            )
-            st.session_state.current_test_prompt = edited_prompt
+        # Paste zone
+        paste_html = paste_and_evaluate_button()
+        st.components.v1.html(paste_html, height=40)
 
-            st.markdown("##### Answer Key (Evaluation Criteria)")
-            edited_criteria = st.text_area(
-                "How to grade responses",
-                value=st.session_state.current_eval_criteria,
-                height=200,
-            )
-            st.session_state.current_eval_criteria = edited_criteria
-
-        # Templates section (collapsed)
-        with st.expander("📁 Templates"):
-            col1, col2 = st.columns(2)
-            with col1:
-                templates = load_templates()
-                if templates:
-                    template_choice = st.selectbox(
-                        "Load template",
-                        options=["-- Select --"] + list(templates.keys())
-                    )
-                    if template_choice != "-- Select --" and st.button("📂 Load"):
-                        template = templates[template_choice]
-                        st.session_state.current_test_prompt = template.get("prompt", BASE_PROMPT_TEMPLATE)
-                        st.session_state.current_eval_criteria = template.get("criteria", DEFAULT_EVALUATION_CRITERIA)
-                        st.rerun()
-                else:
-                    st.info("No templates saved yet")
-            with col2:
-                if st.button("🔄 Reset to Default"):
-                    st.session_state.current_test_prompt = BASE_PROMPT_TEMPLATE.replace("{num_phases}", "7")
-                    st.session_state.current_eval_criteria = DEFAULT_EVALUATION_CRITERIA
-                    if 'test_variants' in st.session_state:
-                        del st.session_state.test_variants
-                    st.rerun()
-
-        # Show current test prompt
-        st.markdown("---")
-        st.subheader("📋 Current Test (Copy This)")
-
-        final_prompt = generate_test_prompt(
-            st.session_state.current_test_prompt,
-            project_desc if include_project_phase else None,
-            include_project_phase
-        )
-
-        st.code(final_prompt, language="markdown")
-        st.info("👆 Copy the test above and paste it to any LLM you want to evaluate, or go to **Evaluate** tab for the full workflow")
-
-    # TAB 2: Evaluate
-    with tab2:
-        # Check for auto-eval trigger from Paste & Go button
-        auto_eval_trigger = st.query_params.get("auto_eval", None)
-
-        # If auto-eval was triggered, get clipboard from sessionStorage via JS injection
-        if auto_eval_trigger:
-            # Clear old text FIRST
-            st.session_state.pasted_text = ""
-            # Inject JS to read from sessionStorage and redirect with data
-            st.components.v1.html("""
-            <script>
-            (function() {
-                var encoded = window.parent.sessionStorage.getItem('clipboard_text');
-                if (encoded) {
-                    var url = new URL(window.parent.location.href);
-                    url.searchParams.delete('auto_eval');
-                    url.searchParams.set('pasted_data', encoded);
-                    window.parent.location.replace(url.toString());
-                } else {
-                    // No data in sessionStorage, just clear params
-                    var url = new URL(window.parent.location.href);
-                    url.searchParams.delete('auto_eval');
-                    window.parent.location.replace(url.toString());
-                }
-            })();
-            </script>
-            """, height=0)
-            st.stop()  # Stop execution while redirecting
-
-        # Check if we have pasted data ready
-        pasted_data_encoded = st.query_params.get("pasted_data", None)
-        if pasted_data_encoded:
-            import base64
-            try:
-                # Decode the base64 content
-                decoded_bytes = base64.b64decode(pasted_data_encoded)
-                clipboard_text = decoded_bytes.decode('utf-8')
-                # Set the new text
-                st.session_state.pasted_text = clipboard_text
-                st.session_state.show_paste_area = False
-                st.session_state.auto_evaluate = True
-                # Clear the query param
-                st.query_params.clear()
-                # Clear sessionStorage via JS
-                st.components.v1.html("""<script>window.parent.sessionStorage.removeItem('clipboard_text');window.parent.sessionStorage.removeItem('auto_evaluate');</script>""", height=0)
-            except Exception as e:
-                st.error(f"Decode error: {e}")
-                st.query_params.clear()
-
-        # Header row - just title and the Paste & Go button
-        col_title, col_paste = st.columns([3, 1])
-        with col_title:
-            st.markdown("#### Evaluate Response")
-        with col_paste:
-            paste_html = paste_and_evaluate_button()
-            st.components.v1.html(paste_html, height=40)
-
-        # Collapsible paste area (collapsed if auto-eval)
+        # Collapsible paste area
         with st.expander("📋 Paste Area", expanded=st.session_state.show_paste_area):
-            full_exchange = st.text_area(
-                "",
-                value=st.session_state.pasted_text,
-                height=150,
-                placeholder="Paste test exchange here, or use Paste & Go button above",
-                key="paste_area",
-                label_visibility="collapsed"
-            )
+            full_exchange = st.text_area("", value=st.session_state.pasted_text, height=100,
+                placeholder="Or paste here manually", key="paste_area", label_visibility="collapsed")
             st.session_state.pasted_text = full_exchange
 
         # Auto-evaluate if triggered
         should_evaluate = st.session_state.get('auto_evaluate', False) and st.session_state.pasted_text
         if should_evaluate:
-            st.session_state.auto_evaluate = False  # Reset flag
+            st.session_state.auto_evaluate = False
 
-        # Evaluate button OR auto-trigger
+        # Evaluate button
         if should_evaluate or st.button("🔍 Evaluate", type="primary", disabled=not full_exchange or not api_key, use_container_width=True):
             if not api_key:
-                st.error("Enter API key in sidebar")
+                st.error("Need API key")
             elif not (full_exchange or st.session_state.pasted_text):
-                st.error("Paste test exchange first")
+                st.error("Paste first")
             else:
                 st.session_state.show_paste_area = False
                 text_to_eval = full_exchange or st.session_state.pasted_text
-
-                with st.spinner(f"Evaluating..."):
+                with st.spinner("Evaluating..."):
                     try:
                         if provider == "OpenAI":
                             results = evaluate_combined_openai(api_key, model, text_to_eval)
@@ -1592,21 +1461,18 @@ def main():
                             results = evaluate_combined_anthropic(api_key, model, text_to_eval)
                         else:
                             results = evaluate_combined_gemini(api_key, model, text_to_eval)
-
                         display_results(results, llm_tested, text_to_eval)
-
-                    except json.JSONDecodeError as e:
-                        st.error(f"Parse error: {e}")
                     except Exception as e:
-                        st.error(f"Failed: {e}")
+                        st.error(f"Error: {e}")
 
         if not api_key:
-            st.warning("⚠️ API key required")
+            st.caption("⚠️ API key required")
 
-    # TAB 3: Templates
-    with tab3:
-        st.header("Manage Templates")
+    # Bottom section: Templates & History in tabs (less important)
+    st.markdown("---")
+    tab_templates, tab_history = st.tabs(["📁 Templates", "📜 History"])
 
+    with tab_templates:
         col1, col2 = st.columns([1, 1])
 
         with col1:
@@ -1660,8 +1526,7 @@ def main():
             else:
                 st.info("No templates saved yet. Create one from the 'Create Test' tab!")
 
-    # TAB 4: History
-    with tab4:
+    with tab_history:
         st.header("Test History")
 
         history = load_history()
