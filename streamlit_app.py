@@ -1191,48 +1191,55 @@ def evaluate_combined_gemini(api_key, model, full_exchange):
 
 
 def display_results(results, llm_tested, test_prompt, response=None, template_name=None):
-    """Display compact evaluation results and save to history."""
-    # Phase results in a tight grid
+    """Display evaluation results as cards - compact but readable."""
     phases = results.get("phases", [])
     overall = results.get("overall", {})
     result_type = overall.get("result", "SKIP")
     score = overall.get("score", 0)
     summary = overall.get("summary", "No summary")
-    result_info = RESULT_TYPES.get(result_type, RESULT_TYPES["SKIP"])
 
-    # Big verdict at top
+    # Big verdict banner
     if result_type == "GO":
-        st.success(f"✅ **GO** ({score}pts) - {summary}")
+        st.success(f"✅ **GO** ({score}/7) - {summary}")
     elif result_type == "GO_WITH_CHECKS":
-        st.info(f"✅ **GO+CHECKS** ({score}pts) - {summary}")
+        st.info(f"✅ **GO+CHECKS** ({score}/7) - {summary}")
     elif result_type == "SIMPLE_ONLY":
-        st.warning(f"⚠️ **SIMPLE ONLY** ({score}pts) - {summary}")
+        st.warning(f"⚠️ **SIMPLE** ({score}/7) - {summary}")
     elif result_type == "CRITICAL_FAIL":
-        st.error(f"🚫 **CRITICAL FAIL** ({score}pts) - {summary}")
+        st.error(f"🚫 **FAIL** ({score}/7) - {summary}")
     else:
-        st.error(f"❌ **SKIP** ({score}pts) - {summary}")
+        st.error(f"❌ **SKIP** ({score}/7) - {summary}")
 
-    # Compact phase results - 4 columns
-    cols = st.columns(4)
-    for i, phase in enumerate(phases):
-        col = cols[i % 4]
-        with col:
-            status = phase.get("status", "?")
-            name = phase.get("name", f"T{phase.get('phase', i+1)}")
-            # Shorten name
-            short_name = name[:12] + ".." if len(name) > 14 else name
-            icon = {"PASS": "✅", "CONCERN": "⚠️", "FAIL": "❌"}.get(status, "?")
-            critical = "🚨" if phase.get("critical", False) else ""
-            st.markdown(f"{icon} **{short_name}**{critical}")
+    # Result cards - 4 columns, wrap to 2 rows for 7 items
+    num_phases = len(phases)
+    cols_per_row = 4
 
-    # Show reasons in expander
-    with st.expander("📋 Details", expanded=False):
-        for phase in phases:
-            status = phase.get("status", "?")
-            name = phase.get("name", "?")
-            reason = phase.get("reason", "")
-            icon = {"PASS": "✅", "CONCERN": "⚠️", "FAIL": "❌"}.get(status, "?")
-            st.markdown(f"{icon} **{name}**: {reason}")
+    for row_start in range(0, num_phases, cols_per_row):
+        cols = st.columns(cols_per_row)
+        for i, col in enumerate(cols):
+            phase_idx = row_start + i
+            if phase_idx < num_phases:
+                phase = phases[phase_idx]
+                status = phase.get("status", "?")
+                name = phase.get("name", f"Task {phase_idx+1}")
+                reason = phase.get("reason", "")
+                critical = phase.get("critical", False)
+
+                icon = {"PASS": "✅", "CONCERN": "⚠️", "FAIL": "❌"}.get(status, "?")
+                bg_color = {"PASS": "#1a2e1a", "CONCERN": "#2e2a1a", "FAIL": "#2e1a1a"}.get(status, "#1a1a2e")
+                border_color = {"PASS": "#4CAF50", "CONCERN": "#FF9800", "FAIL": "#f44336"}.get(status, "#666")
+
+                # Shorten name for card title
+                short_name = name[:10] if len(name) > 10 else name
+                crit_mark = "🚨" if critical else ""
+
+                with col:
+                    st.markdown(f"""
+                    <div style="background:{bg_color}; border:1px solid {border_color}; border-radius:4px; padding:4px 6px; margin:2px 0; font-size:10px;">
+                        <div style="font-weight:bold;">{icon} {short_name}{crit_mark}</div>
+                        <div style="color:#aaa; font-size:9px; line-height:1.2;">{reason[:60]}{'...' if len(reason)>60 else ''}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
     # Save to history
     history_entry = {
@@ -1393,15 +1400,15 @@ def main():
     # Title
     st.markdown("## 🧠 AI Tester")
 
-    # MAIN LAYOUT: Two columns - Create Test | Evaluate
-    col_create, col_eval = st.columns([1, 1])
+    # MAIN LAYOUT: 1/4 Create | 3/4 Evaluate
+    col_create, col_eval = st.columns([1, 3])
 
-    # LEFT COLUMN: Create Test
+    # LEFT COLUMN: Create Test (minimal)
     with col_create:
-        st.markdown("#### 📝 Create Test")
+        st.markdown("**📝 Create**")
 
         # Generate button
-        if st.button("🎲 Generate New Test", type="primary", use_container_width=True):
+        if st.button("🎲 New", type="primary", use_container_width=True):
             new_prompt, new_criteria, variants = generate_randomized_test()
             st.session_state.current_test_prompt = new_prompt
             st.session_state.current_eval_criteria = new_criteria
@@ -1410,33 +1417,39 @@ def main():
             st.session_state.test_is_fresh = True
             st.rerun()
 
-        # Show current test info
-        if 'test_variants' in st.session_state:
-            v = st.session_state.test_variants
-            st.caption(f"Fake: `{v.get('fake_tech', '?')[:20]}` | Func: `{v.get('function', '?')}`")
-
         # Copy button
         if 'test_variants' in st.session_state:
             test_to_copy = st.session_state.get('generated_test', st.session_state.current_test_prompt)
             copy_html = copy_button_with_js(test_to_copy, "main_copy", st.session_state.test_is_fresh)
-            st.components.v1.html(copy_html, height=50)
+            st.components.v1.html(copy_html, height=45)
 
-        # Show test in expander
-        with st.expander("📄 View Test", expanded=False):
-            st.code(st.session_state.current_test_prompt[:500] + "...", language="markdown")
+            # 1-sentence preview (confirmation something was generated)
+            preview = st.session_state.current_test_prompt[:80].replace('\n', ' ')
+            with st.expander(f"📄 {preview}...", expanded=False):
+                st.code(st.session_state.current_test_prompt, language="markdown")
 
-    # RIGHT COLUMN: Evaluate
+    # RIGHT COLUMN: Evaluate (main focus)
     with col_eval:
-        st.markdown("#### 📊 Evaluate")
+        st.markdown("**📊 Evaluate**")
 
-        # Paste zone
-        paste_html = paste_and_evaluate_button()
-        st.components.v1.html(paste_html, height=40)
+        # Paste zone + preview in a row
+        paste_col, preview_col = st.columns([1, 2])
+        with paste_col:
+            paste_html = paste_and_evaluate_button()
+            st.components.v1.html(paste_html, height=40)
 
-        # Collapsible paste area
-        with st.expander("📋 Paste Area", expanded=st.session_state.show_paste_area):
-            full_exchange = st.text_area("", value=st.session_state.pasted_text, height=100,
-                placeholder="Or paste here manually", key="paste_area", label_visibility="collapsed")
+        with preview_col:
+            # 1-sentence preview of pasted content
+            if st.session_state.pasted_text:
+                preview_text = st.session_state.pasted_text[:60].replace('\n', ' ')
+                st.caption(f"📋 {preview_text}...")
+            else:
+                st.caption("📋 Nothing pasted yet")
+
+        # Hidden full paste area (only if needed)
+        with st.expander("📋 Manual paste", expanded=False):
+            full_exchange = st.text_area("", value=st.session_state.pasted_text, height=80,
+                placeholder="Paste here if right-click doesn't work", key="paste_area", label_visibility="collapsed")
             st.session_state.pasted_text = full_exchange
 
         # Auto-evaluate if triggered
@@ -1445,14 +1458,14 @@ def main():
             st.session_state.auto_evaluate = False
 
         # Evaluate button
-        if should_evaluate or st.button("🔍 Evaluate", type="primary", disabled=not full_exchange or not api_key, use_container_width=True):
+        if should_evaluate or st.button("🔍 Evaluate", type="primary", disabled=not st.session_state.pasted_text or not api_key, use_container_width=True):
             if not api_key:
                 st.error("Need API key")
-            elif not (full_exchange or st.session_state.pasted_text):
+            elif not st.session_state.pasted_text:
                 st.error("Paste first")
             else:
                 st.session_state.show_paste_area = False
-                text_to_eval = full_exchange or st.session_state.pasted_text
+                text_to_eval = st.session_state.pasted_text
                 with st.spinner("Evaluating..."):
                     try:
                         if provider == "OpenAI":
@@ -1466,7 +1479,7 @@ def main():
                         st.error(f"Error: {e}")
 
         if not api_key:
-            st.caption("⚠️ API key required")
+            st.caption("⚠️ API key needed")
 
     # Bottom section: Templates & History in tabs (less important)
     st.markdown("---")
