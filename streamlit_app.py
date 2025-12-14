@@ -920,84 +920,98 @@ def copy_button_with_js(text_to_copy, key=None, is_fresh=True):
 
 
 def paste_and_evaluate_button():
-    """Create a button that does 4 things: Clear, Paste from clipboard, Evaluate, Collapse."""
+    """Create an input that captures paste events - avoids clipboard permission issues."""
     paste_js = """
     <!DOCTYPE html>
     <html>
     <head>
     <style>
-    body { margin: 0; padding: 2px; background: transparent; }
-    .paste-eval-btn {
-        border: none;
-        color: white;
-        padding: 8px 16px;
-        border-radius: 6px;
-        font-size: 13px;
-        font-weight: 600;
-        cursor: pointer;
+    body { margin: 0; padding: 0; background: transparent; }
+    .paste-container {
+        position: relative;
         width: 100%;
-        background: #1976d2;
-        transition: all 0.3s ease;
-        animation: pulse-blue 2s ease-in-out infinite;
     }
-    .paste-eval-btn:hover { filter: brightness(1.1); }
-    .paste-eval-btn.working { background: #7b1fa2; animation: none; }
-    .paste-eval-btn.error { background: #d32f2f; animation: none; }
-    @keyframes pulse-blue {
-        0% { box-shadow: 0 0 5px rgba(25, 118, 210, 0.4); }
-        50% { box-shadow: 0 0 10px rgba(25, 118, 210, 0.6); }
-        100% { box-shadow: 0 0 5px rgba(25, 118, 210, 0.4); }
+    .paste-input {
+        width: 100%;
+        padding: 8px 12px;
+        border: 2px solid #1976d2;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        background: #1a1a2e;
+        color: #1976d2;
+        cursor: pointer;
+        text-align: center;
+        animation: pulse-border 2s ease-in-out infinite;
+    }
+    .paste-input:focus {
+        outline: none;
+        border-color: #4CAF50;
+        background: #1a2e1a;
+        color: #4CAF50;
+    }
+    .paste-input::placeholder {
+        color: #1976d2;
+        opacity: 1;
+    }
+    .paste-input:focus::placeholder {
+        color: #4CAF50;
+    }
+    .paste-input.success {
+        border-color: #4CAF50;
+        background: #1a2e1a;
+        color: #4CAF50;
+        animation: none;
+    }
+    .paste-input.error {
+        border-color: #f44336;
+        background: #2e1a1a;
+        color: #f44336;
+        animation: none;
+    }
+    @keyframes pulse-border {
+        0% { box-shadow: 0 0 3px rgba(25, 118, 210, 0.3); }
+        50% { box-shadow: 0 0 8px rgba(25, 118, 210, 0.6); }
+        100% { box-shadow: 0 0 3px rgba(25, 118, 210, 0.3); }
     }
     </style>
     </head>
     <body>
-    <button class="paste-eval-btn" id="paste_eval_btn" onclick="pasteAndEval()">📋 Paste & Go</button>
+    <div class="paste-container">
+        <input type="text" class="paste-input" id="paste_input"
+               placeholder="📋 Click → Ctrl+V"
+               readonly
+               onclick="this.focus(); this.placeholder='Now press Ctrl+V';"
+               onpaste="handlePaste(event)">
+    </div>
     <script>
-    async function pasteAndEval() {
-        var btn = document.getElementById('paste_eval_btn');
-        btn.innerText = '⏳ Reading...';
-        btn.className = 'paste-eval-btn working';
+    function handlePaste(e) {
+        e.preventDefault();
+        var input = document.getElementById('paste_input');
+        var text = (e.clipboardData || window.clipboardData).getData('text');
 
-        try {
-            // Try parent window's clipboard first (same origin), then fallback to iframe's
-            var text;
-            try {
-                text = await window.parent.navigator.clipboard.readText();
-            } catch(e) {
-                text = await navigator.clipboard.readText();
-            }
-
-            if (!text || text.trim() === '') {
-                btn.innerText = '❌ Empty';
-                btn.className = 'paste-eval-btn error';
-                setTimeout(function() {
-                    btn.innerText = '📋 Paste & Go';
-                    btn.className = 'paste-eval-btn';
-                }, 1500);
-                return;
-            }
-
-            btn.innerText = '✅ Evaluating...';
-
-            // Store in parent's sessionStorage
-            var encoded = btoa(unescape(encodeURIComponent(text)));
-            window.parent.sessionStorage.setItem('clipboard_text', encoded);
-            window.parent.sessionStorage.setItem('auto_evaluate', 'true');
-
-            // Redirect with query param to trigger reload and auto-evaluate
-            var url = new URL(window.parent.location.href);
-            url.searchParams.set('auto_eval', Date.now());
-            window.parent.location.href = url.toString();
-
-        } catch(err) {
-            console.error('Clipboard read failed:', err);
-            btn.innerText = '❌ Denied';
-            btn.className = 'paste-eval-btn error';
+        if (!text || text.trim() === '') {
+            input.className = 'paste-input error';
+            input.value = '❌ Empty clipboard';
             setTimeout(function() {
-                btn.innerText = '📋 Paste & Go';
-                btn.className = 'paste-eval-btn';
-            }, 2000);
+                input.className = 'paste-input';
+                input.value = '';
+                input.placeholder = '📋 Click → Ctrl+V';
+            }, 1500);
+            return;
         }
+
+        input.className = 'paste-input success';
+        input.value = '✅ Got it! Evaluating...';
+
+        // Store in parent's sessionStorage and trigger redirect
+        var encoded = btoa(unescape(encodeURIComponent(text)));
+        window.parent.sessionStorage.setItem('clipboard_text', encoded);
+        window.parent.sessionStorage.setItem('auto_evaluate', 'true');
+
+        var url = new URL(window.parent.location.href);
+        url.searchParams.set('auto_eval', Date.now());
+        window.parent.location.href = url.toString();
     }
     </script>
     </body>
