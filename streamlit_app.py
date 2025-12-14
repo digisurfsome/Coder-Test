@@ -919,6 +919,128 @@ def copy_button_with_js(text_to_copy, key=None, is_fresh=True):
     return copy_js
 
 
+def paste_and_evaluate_button():
+    """Create a button that pastes from clipboard and triggers evaluation via URL redirect."""
+    import urllib.parse
+
+    # Get current URL base
+    paste_js = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <style>
+    body { margin: 0; padding: 5px; background: transparent; }
+    .paste-eval-btn {
+        border: none;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        width: 100%;
+        background: #1976d2;
+        transition: all 0.3s ease;
+        animation: pulse-blue 2s ease-in-out infinite;
+    }
+    .paste-eval-btn:hover {
+        filter: brightness(1.1);
+    }
+    .paste-eval-btn.working {
+        background: #7b1fa2;
+        animation: none;
+    }
+    .paste-eval-btn.error {
+        background: #d32f2f;
+        animation: none;
+    }
+    @keyframes pulse-blue {
+        0% { box-shadow: 0 0 8px rgba(25, 118, 210, 0.4); }
+        50% { box-shadow: 0 0 15px rgba(25, 118, 210, 0.7), 0 0 25px rgba(25, 118, 210, 0.4); }
+        100% { box-shadow: 0 0 8px rgba(25, 118, 210, 0.4); }
+    }
+    </style>
+    </head>
+    <body>
+    <button class="paste-eval-btn" id="paste_eval_btn" onclick="pasteAndEval()">📋 Paste & Evaluate</button>
+    <script>
+    async function pasteAndEval() {
+        var btn = document.getElementById('paste_eval_btn');
+        btn.innerText = '⏳ Reading clipboard...';
+        btn.className = 'paste-eval-btn working';
+
+        try {
+            var text = await navigator.clipboard.readText();
+            if (!text || text.trim() === '') {
+                btn.innerText = '❌ Clipboard empty';
+                btn.className = 'paste-eval-btn error';
+                setTimeout(function() {
+                    btn.innerText = '📋 Paste & Evaluate';
+                    btn.className = 'paste-eval-btn';
+                }, 2000);
+                return;
+            }
+
+            btn.innerText = '✅ Got it! Evaluating...';
+
+            // Store in sessionStorage for Streamlit to pick up
+            var encoded = btoa(unescape(encodeURIComponent(text)));
+            sessionStorage.setItem('clipboard_text', encoded);
+            sessionStorage.setItem('auto_evaluate', 'true');
+
+            // Redirect with query param to trigger reload
+            var url = new URL(window.parent.location.href);
+            url.searchParams.set('clipboard_ready', Date.now());
+            window.parent.location.href = url.toString();
+
+        } catch(err) {
+            console.error('Clipboard read failed:', err);
+            btn.innerText = '❌ Clipboard access denied';
+            btn.className = 'paste-eval-btn error';
+            setTimeout(function() {
+                btn.innerText = '📋 Paste & Evaluate';
+                btn.className = 'paste-eval-btn';
+            }, 3000);
+        }
+    }
+    </script>
+    </body>
+    </html>
+    """
+    return paste_js
+
+
+def get_clipboard_from_session_storage():
+    """JavaScript to retrieve clipboard text from sessionStorage."""
+    return """
+    <script>
+    (function() {
+        var encoded = sessionStorage.getItem('clipboard_text');
+        var autoEval = sessionStorage.getItem('auto_evaluate');
+
+        if (encoded && autoEval === 'true') {
+            try {
+                var text = decodeURIComponent(escape(atob(encoded)));
+                // Find the Streamlit text area and set its value
+                var textareas = window.parent.document.querySelectorAll('textarea');
+                textareas.forEach(function(ta) {
+                    if (ta.placeholder && ta.placeholder.includes('Paste the full test exchange')) {
+                        ta.value = text;
+                        ta.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                });
+                // Clear the flags
+                sessionStorage.removeItem('clipboard_text');
+                sessionStorage.removeItem('auto_evaluate');
+            } catch(e) {
+                console.error('Failed to restore clipboard:', e);
+            }
+        }
+    })();
+    </script>
+    """
+
+
 def generate_test_prompt(base_prompt, project_description=None, include_project_phase=True):
     """Generate a complete test prompt, optionally with project-specific phase."""
     prompt = base_prompt
@@ -1372,23 +1494,41 @@ def main():
 
     # TAB 2: Evaluate
     with tab2:
-        # Header row with title and action button
-        col_title, col_btn = st.columns([3, 1])
+        # Check for clipboard data from query params (from Paste & Evaluate button)
+        query_params = st.query_params
+        clipboard_ready = query_params.get("clipboard_ready", None)
+
+        # Header row with title and action buttons
+        col_title, col_paste, col_clear = st.columns([2, 1, 1])
         with col_title:
             st.header("Evaluate Agent Response")
-        with col_btn:
-            if st.button("🔄 Clear & New", type="secondary", use_container_width=True):
+        with col_paste:
+            # Blue "Paste & Evaluate" button - reads clipboard and triggers evaluation
+            paste_html = paste_and_evaluate_button()
+            st.components.v1.html(paste_html, height=55)
+        with col_clear:
+            if st.button("🔄 Clear", type="secondary", use_container_width=True):
                 st.session_state.pasted_text = ""
                 st.session_state.show_paste_area = True
+                st.session_state.auto_evaluate = False
+                # Clear query params
+                st.query_params.clear()
                 st.rerun()
+
+        # Handle clipboard data restoration from sessionStorage
+        if clipboard_ready:
+            st.components.v1.html(get_clipboard_from_session_storage(), height=0)
+            st.info("📋 Clipboard content loaded! Click **Evaluate** below or paste manually if needed.")
+            # Clear the query param
+            st.query_params.clear()
 
         # Collapsible paste area
         with st.expander("📋 Paste Test Exchange", expanded=st.session_state.show_paste_area):
             full_exchange = st.text_area(
                 "Paste questions + answers here",
                 value=st.session_state.pasted_text,
-                height=300,
-                placeholder="Paste the full test exchange (questions AND answers together)...",
+                height=250,
+                placeholder="Paste the full test exchange (questions AND answers together)...\n\nOr use the blue 'Paste & Evaluate' button above to auto-paste from clipboard!",
                 key="paste_area"
             )
             # Update session state
