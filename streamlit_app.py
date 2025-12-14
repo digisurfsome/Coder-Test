@@ -939,8 +939,10 @@ def paste_and_evaluate_button():
         cursor: context-menu;
         text-align: center;
         transition: all 0.2s ease;
+        outline: none;
+        -webkit-user-modify: read-write-plaintext-only;
     }
-    .paste-zone:hover {
+    .paste-zone:hover, .paste-zone:focus {
         border-color: #4CAF50;
         border-style: solid;
         background: #1a2e1a;
@@ -961,28 +963,32 @@ def paste_and_evaluate_button():
     </head>
     <body>
     <div class="paste-zone" id="paste_zone"
+         contenteditable="true"
          onmouseenter="handleHover()"
-         oncontextmenu="return true;"
-         onpaste="handlePaste(event)">
+         onfocus="handleHover()"
+         onpaste="handlePaste(event)"
+         onkeydown="return false;"
+         oninput="this.innerText = readyText;">
         Hover → Right-click → Paste
     </div>
     <script>
     var cleared = false;
+    var readyText = '✓ Ready - Right-click → Paste';
 
     function handleHover() {
+        var zone = document.getElementById('paste_zone');
         if (!cleared) {
-            // Clear old text in parent's sessionStorage
             window.parent.sessionStorage.removeItem('clipboard_text');
             window.parent.sessionStorage.removeItem('auto_evaluate');
             cleared = true;
-            document.getElementById('paste_zone').innerText = '✓ Ready - Right-click → Paste';
+            zone.innerText = readyText;
         }
+        zone.focus();
     }
-
-    document.getElementById('paste_zone').addEventListener('paste', handlePaste);
 
     function handlePaste(e) {
         e.preventDefault();
+        e.stopPropagation();
         var zone = document.getElementById('paste_zone');
         var text = (e.clipboardData || window.clipboardData).getData('text');
 
@@ -1000,7 +1006,6 @@ def paste_and_evaluate_button():
         zone.className = 'paste-zone success';
         zone.innerText = '✅ Evaluating...';
 
-        // Store and trigger
         var encoded = btoa(unescape(encodeURIComponent(text)));
         window.parent.sessionStorage.setItem('clipboard_text', encoded);
         window.parent.sessionStorage.setItem('auto_evaluate', 'true');
