@@ -1503,42 +1503,51 @@ def main():
     with tab2:
         # Check for auto-eval trigger from Paste & Go button
         auto_eval_trigger = st.query_params.get("auto_eval", None)
-        clipboard_text_from_js = None
 
         # If auto-eval was triggered, get clipboard from sessionStorage via JS injection
         if auto_eval_trigger:
-            # Inject JS to read from sessionStorage and populate a hidden div
+            # Clear old text FIRST
+            st.session_state.pasted_text = ""
+            # Inject JS to read from sessionStorage and redirect with data
             st.components.v1.html("""
             <script>
             (function() {
                 var encoded = window.parent.sessionStorage.getItem('clipboard_text');
                 if (encoded) {
-                    var text = decodeURIComponent(escape(atob(encoded)));
-                    // Store decoded text for Python to pick up via query param
                     var url = new URL(window.parent.location.href);
                     url.searchParams.delete('auto_eval');
                     url.searchParams.set('pasted_data', encoded);
+                    window.parent.location.replace(url.toString());
+                } else {
+                    // No data in sessionStorage, just clear params
+                    var url = new URL(window.parent.location.href);
+                    url.searchParams.delete('auto_eval');
                     window.parent.location.replace(url.toString());
                 }
             })();
             </script>
             """, height=0)
+            st.stop()  # Stop execution while redirecting
 
         # Check if we have pasted data ready
         pasted_data_encoded = st.query_params.get("pasted_data", None)
         if pasted_data_encoded:
             import base64
             try:
-                clipboard_text_from_js = base64.b64decode(pasted_data_encoded).decode('utf-8')
-                st.session_state.pasted_text = clipboard_text_from_js
-                st.session_state.show_paste_area = False  # Collapse immediately
+                # Decode the base64 content
+                decoded_bytes = base64.b64decode(pasted_data_encoded)
+                clipboard_text = decoded_bytes.decode('utf-8')
+                # Set the new text
+                st.session_state.pasted_text = clipboard_text
+                st.session_state.show_paste_area = False
                 st.session_state.auto_evaluate = True
                 # Clear the query param
                 st.query_params.clear()
                 # Clear sessionStorage via JS
                 st.components.v1.html("""<script>window.parent.sessionStorage.removeItem('clipboard_text');window.parent.sessionStorage.removeItem('auto_evaluate');</script>""", height=0)
-            except:
-                pass
+            except Exception as e:
+                st.error(f"Decode error: {e}")
+                st.query_params.clear()
 
         # Header row - just title and the Paste & Go button
         col_title, col_paste = st.columns([3, 1])
