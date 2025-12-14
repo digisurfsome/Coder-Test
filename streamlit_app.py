@@ -1160,6 +1160,15 @@ def display_results(results, llm_tested, test_prompt, response=None, template_na
 
 
 def main():
+    # Reduce top padding
+    st.markdown("""
+    <style>
+    .block-container { padding-top: 1rem !important; }
+    header { visibility: hidden; }
+    #MainMenu { visibility: hidden; }
+    </style>
+    """, unsafe_allow_html=True)
+
     st.title("🧠 AI Tester")
     st.markdown("**AI Coding Agent Warmup & Evaluation**")
 
@@ -1170,6 +1179,12 @@ def main():
         st.session_state.current_eval_criteria = DEFAULT_EVALUATION_CRITERIA
     if 'test_is_fresh' not in st.session_state:
         st.session_state.test_is_fresh = False  # No fresh test until they generate one
+    if 'pasted_text' not in st.session_state:
+        st.session_state.pasted_text = ""
+    if 'show_paste_area' not in st.session_state:
+        st.session_state.show_paste_area = True
+    if 'auto_evaluate' not in st.session_state:
+        st.session_state.auto_evaluate = False
 
     # Sidebar for configuration
     with st.sidebar:
@@ -1357,39 +1372,29 @@ def main():
 
     # TAB 2: Evaluate
     with tab2:
-        st.header("Evaluate Agent Response")
+        # Header row with title and action button
+        col_title, col_btn = st.columns([3, 1])
+        with col_title:
+            st.header("Evaluate Agent Response")
+        with col_btn:
+            if st.button("🔄 Clear & New", type="secondary", use_container_width=True):
+                st.session_state.pasted_text = ""
+                st.session_state.show_paste_area = True
+                st.rerun()
 
-        st.markdown("""
-        **Paste the complete test exchange below** - both the questions AND the answers together.
-        The evaluator will analyze everything in one go.
-        """)
+        # Collapsible paste area
+        with st.expander("📋 Paste Test Exchange", expanded=st.session_state.show_paste_area):
+            full_exchange = st.text_area(
+                "Paste questions + answers here",
+                value=st.session_state.pasted_text,
+                height=300,
+                placeholder="Paste the full test exchange (questions AND answers together)...",
+                key="paste_area"
+            )
+            # Update session state
+            st.session_state.pasted_text = full_exchange
 
-        full_exchange = st.text_area(
-            "Paste Questions + Answers",
-            height=500,
-            placeholder="""Paste the full exchange here...
-
-Example format:
----
-TASK 1: Quick Format Check
-[question text...]
-
-TASK 1: Quick Format Check
-ACKNOWLEDGED
-[answer text...]
-
-TASK 2: Technical Question
-[question text...]
-
-TASK 2: Technical Question
-[answer text...]
----
-
-Just copy everything from the LLM chat and paste it here."""
-        )
-
-        st.markdown("---")
-
+        # Evaluate button
         if st.button("🔍 Evaluate", type="primary", disabled=not full_exchange or not api_key, use_container_width=True):
             if not api_key:
                 st.error("Please enter your API key in the sidebar")
@@ -1398,6 +1403,9 @@ Just copy everything from the LLM chat and paste it here."""
             elif not llm_tested:
                 st.error("Please select which LLM you're testing in the sidebar")
             else:
+                # Collapse the paste area to show results
+                st.session_state.show_paste_area = False
+
                 with st.spinner(f"Evaluating with {model_display}..."):
                     try:
                         if provider == "OpenAI":
