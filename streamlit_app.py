@@ -920,91 +920,87 @@ def copy_button_with_js(text_to_copy, key=None, is_fresh=True):
 
 
 def paste_and_evaluate_button():
-    """Create an input that captures paste events - avoids clipboard permission issues."""
+    """Hover to clear, right-click paste to evaluate - minimal actions."""
     paste_js = """
     <!DOCTYPE html>
     <html>
     <head>
     <style>
     body { margin: 0; padding: 0; background: transparent; }
-    .paste-container {
-        position: relative;
+    .paste-zone {
         width: 100%;
-    }
-    .paste-input {
-        width: 100%;
-        padding: 8px 12px;
-        border: 2px solid #1976d2;
+        padding: 10px 12px;
+        border: 2px dashed #1976d2;
         border-radius: 6px;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
         background: #1a1a2e;
         color: #1976d2;
-        cursor: pointer;
+        cursor: context-menu;
         text-align: center;
-        animation: pulse-border 2s ease-in-out infinite;
+        transition: all 0.2s ease;
     }
-    .paste-input:focus {
-        outline: none;
+    .paste-zone:hover {
         border-color: #4CAF50;
+        border-style: solid;
         background: #1a2e1a;
         color: #4CAF50;
     }
-    .paste-input::placeholder {
-        color: #1976d2;
-        opacity: 1;
-    }
-    .paste-input:focus::placeholder {
-        color: #4CAF50;
-    }
-    .paste-input.success {
+    .paste-zone.success {
         border-color: #4CAF50;
         background: #1a2e1a;
         color: #4CAF50;
-        animation: none;
+        border-style: solid;
     }
-    .paste-input.error {
+    .paste-zone.error {
         border-color: #f44336;
         background: #2e1a1a;
         color: #f44336;
-        animation: none;
-    }
-    @keyframes pulse-border {
-        0% { box-shadow: 0 0 3px rgba(25, 118, 210, 0.3); }
-        50% { box-shadow: 0 0 8px rgba(25, 118, 210, 0.6); }
-        100% { box-shadow: 0 0 3px rgba(25, 118, 210, 0.3); }
     }
     </style>
     </head>
     <body>
-    <div class="paste-container">
-        <input type="text" class="paste-input" id="paste_input"
-               placeholder="📋 Click → Ctrl+V"
-               readonly
-               onclick="this.focus(); this.placeholder='Now press Ctrl+V';"
-               onpaste="handlePaste(event)">
+    <div class="paste-zone" id="paste_zone"
+         onmouseenter="handleHover()"
+         oncontextmenu="return true;"
+         onpaste="handlePaste(event)">
+        Hover → Right-click → Paste
     </div>
     <script>
+    var cleared = false;
+
+    function handleHover() {
+        if (!cleared) {
+            // Clear old text in parent's sessionStorage
+            window.parent.sessionStorage.removeItem('clipboard_text');
+            window.parent.sessionStorage.removeItem('auto_evaluate');
+            cleared = true;
+            document.getElementById('paste_zone').innerText = '✓ Ready - Right-click → Paste';
+        }
+    }
+
+    document.getElementById('paste_zone').addEventListener('paste', handlePaste);
+
     function handlePaste(e) {
         e.preventDefault();
-        var input = document.getElementById('paste_input');
+        var zone = document.getElementById('paste_zone');
         var text = (e.clipboardData || window.clipboardData).getData('text');
 
         if (!text || text.trim() === '') {
-            input.className = 'paste-input error';
-            input.value = '❌ Empty clipboard';
+            zone.className = 'paste-zone error';
+            zone.innerText = '❌ Empty';
             setTimeout(function() {
-                input.className = 'paste-input';
-                input.value = '';
-                input.placeholder = '📋 Click → Ctrl+V';
+                zone.className = 'paste-zone';
+                zone.innerText = 'Hover → Right-click → Paste';
+                cleared = false;
             }, 1500);
             return;
         }
 
-        input.className = 'paste-input success';
-        input.value = '✅ Got it! Evaluating...';
+        zone.className = 'paste-zone success';
+        zone.innerText = '✅ Evaluating...';
 
-        // Store in parent's sessionStorage and trigger redirect
+        // Store and trigger
         var encoded = btoa(unescape(encodeURIComponent(text)));
         window.parent.sessionStorage.setItem('clipboard_text', encoded);
         window.parent.sessionStorage.setItem('auto_evaluate', 'true');
