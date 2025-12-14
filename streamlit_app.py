@@ -1397,8 +1397,14 @@ def main():
             st.error(f"Decode error: {e}")
             st.query_params.clear()
 
-    # Title
-    st.markdown("## 🧠 AI Tester")
+    # Title row with Templates & History buttons
+    title_col, spacer, templates_col, history_col = st.columns([3, 2, 1, 1])
+    with title_col:
+        st.markdown("## 🧠 AI Tester")
+    with templates_col:
+        show_templates = st.button("📁 Templates", use_container_width=True)
+    with history_col:
+        show_history = st.button("📜 History", use_container_width=True)
 
     # MAIN LAYOUT: 1/4 Create | 3/4 Evaluate
     col_create, col_eval = st.columns([1, 3])
@@ -1481,11 +1487,10 @@ def main():
         if not api_key:
             st.caption("⚠️ API key needed")
 
-    # Bottom section: Templates & History in tabs (less important)
-    st.markdown("---")
-    tab_templates, tab_history = st.tabs(["📁 Templates", "📜 History"])
-
-    with tab_templates:
+    # Templates popup (only when button clicked)
+    if show_templates:
+        st.markdown("---")
+        st.markdown("#### 📁 Templates")
         col1, col2 = st.columns([1, 1])
 
         with col1:
@@ -1537,10 +1542,12 @@ def main():
                                 st.success(f"Deleted: {name}")
                                 st.rerun()
             else:
-                st.info("No templates saved yet. Create one from the 'Create Test' tab!")
+                st.info("No templates saved yet.")
 
-    with tab_history:
-        st.header("Test History")
+    # History popup (only when button clicked)
+    if show_history:
+        st.markdown("---")
+        st.markdown("#### 📜 History")
 
         history = load_history()
 
