@@ -1397,14 +1397,16 @@ def main():
             st.error(f"Decode error: {e}")
             st.query_params.clear()
 
-    # Title row with Templates & History buttons
-    title_col, spacer, templates_col, history_col = st.columns([3, 2, 1, 1])
+    # Title row with Templates, History, Edit buttons
+    title_col, edit_col, templates_col, history_col = st.columns([4, 1, 1, 1])
     with title_col:
         st.markdown("## 🧠 AI Tester")
+    with edit_col:
+        show_edit = st.button("✏️ Edit", use_container_width=True)
     with templates_col:
-        show_templates = st.button("📁 Templates", use_container_width=True)
+        show_templates = st.button("📁 Templ", use_container_width=True)
     with history_col:
-        show_history = st.button("📜 History", use_container_width=True)
+        show_history = st.button("📜 Hist", use_container_width=True)
 
     # MAIN LAYOUT: 1/4 Create | 3/4 Evaluate
     col_create, col_eval = st.columns([1, 3])
@@ -1438,25 +1440,22 @@ def main():
     with col_eval:
         st.markdown("**📊 Evaluate**")
 
-        # Paste zone + preview in a row
-        paste_col, preview_col = st.columns([1, 2])
-        with paste_col:
-            paste_html = paste_and_evaluate_button()
-            st.components.v1.html(paste_html, height=40)
+        # Paste zone
+        paste_html = paste_and_evaluate_button()
+        st.components.v1.html(paste_html, height=40)
 
-        with preview_col:
-            # 1-sentence preview of pasted content
-            if st.session_state.pasted_text:
-                preview_text = st.session_state.pasted_text[:60].replace('\n', ' ')
-                st.caption(f"📋 {preview_text}...")
-            else:
-                st.caption("📋 Nothing pasted yet")
+        # Show what's pasted (1-sentence preview)
+        if st.session_state.pasted_text:
+            preview_text = st.session_state.pasted_text[:80].replace('\n', ' ')
+            st.success(f"📋 Pasted: {preview_text}...")
 
-        # Hidden full paste area (only if needed)
-        with st.expander("📋 Manual paste", expanded=False):
-            full_exchange = st.text_area("", value=st.session_state.pasted_text, height=80,
-                placeholder="Paste here if right-click doesn't work", key="paste_area", label_visibility="collapsed")
-            st.session_state.pasted_text = full_exchange
+        # Manual paste fallback (always available, collapsed)
+        with st.expander("📋 Manual paste (if right-click fails)", expanded=not st.session_state.pasted_text):
+            full_exchange = st.text_area("", value=st.session_state.pasted_text, height=100,
+                placeholder="Ctrl+V here as fallback", key="paste_area", label_visibility="collapsed")
+            if full_exchange != st.session_state.pasted_text:
+                st.session_state.pasted_text = full_exchange
+                st.rerun()
 
         # Auto-evaluate if triggered
         should_evaluate = st.session_state.get('auto_evaluate', False) and st.session_state.pasted_text
@@ -1486,6 +1485,19 @@ def main():
 
         if not api_key:
             st.caption("⚠️ API key needed")
+
+    # Edit Test popup (only when button clicked)
+    if show_edit:
+        st.markdown("---")
+        st.markdown("#### ✏️ Edit Test Questions")
+        edited_prompt = st.text_area("Test Prompt", value=st.session_state.current_test_prompt, height=200)
+        edited_criteria = st.text_area("Evaluation Criteria", value=st.session_state.current_eval_criteria, height=150)
+        if st.button("💾 Save Changes"):
+            st.session_state.current_test_prompt = edited_prompt
+            st.session_state.current_eval_criteria = edited_criteria
+            st.session_state.generated_test = edited_prompt
+            st.success("Saved!")
+            st.rerun()
 
     # Templates popup (only when button clicked)
     if show_templates:
