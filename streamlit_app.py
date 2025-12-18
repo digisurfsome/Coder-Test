@@ -1191,27 +1191,47 @@ def evaluate_combined_gemini(api_key, model, full_exchange):
 
 
 def display_results(results, llm_tested, test_prompt, response=None, template_name=None):
-    """Display evaluation results as cards - compact but readable."""
+    """Display evaluation results - calculate score from actual phase results."""
     phases = results.get("phases", [])
     overall = results.get("overall", {})
-    result_type = overall.get("result", "SKIP")
-    score = overall.get("score", 0)
     summary = overall.get("summary", "No summary")
 
-    # Big verdict banner
-    if result_type == "GO":
-        st.success(f"✅ **GO** ({score}/7) - {summary}")
-    elif result_type == "GO_WITH_CHECKS":
-        st.info(f"✅ **GO+CHECKS** ({score}/7) - {summary}")
-    elif result_type == "SIMPLE_ONLY":
-        st.warning(f"⚠️ **SIMPLE** ({score}/7) - {summary}")
-    elif result_type == "CRITICAL_FAIL":
-        st.error(f"🚫 **FAIL** ({score}/7) - {summary}")
+    # Calculate score ourselves - don't trust API's score
+    passes = sum(1 for p in phases if p.get("status") == "PASS")
+    concerns = sum(1 for p in phases if p.get("status") == "CONCERN")
+    fails = sum(1 for p in phases if p.get("status") == "FAIL")
+    critical_fails = sum(1 for p in phases if p.get("status") == "FAIL" and p.get("critical", False))
+
+    # Score: PASS=1, CONCERN=0, FAIL=-2
+    score = passes + (fails * -2)
+    total = len(phases)
+
+    # Determine result type
+    if critical_fails > 0:
+        result_type = "CRITICAL_FAIL"
+    elif score >= 5:
+        result_type = "GO"
+    elif score >= 3:
+        result_type = "GO_WITH_CHECKS"
+    elif score >= 1:
+        result_type = "SIMPLE_ONLY"
     else:
-        st.error(f"❌ **SKIP** ({score}/7) - {summary}")
+        result_type = "SKIP"
+
+    # Big verdict banner with calculated score
+    display_score = f"{passes}/{total}"
+    if result_type == "GO":
+        st.success(f"✅ **GO** ({display_score}) - {summary}")
+    elif result_type == "GO_WITH_CHECKS":
+        st.info(f"⚠️ **GO+CHECKS** ({display_score}) - {summary}")
+    elif result_type == "SIMPLE_ONLY":
+        st.warning(f"⚠️ **SIMPLE** ({display_score}) - {summary}")
+    elif result_type == "CRITICAL_FAIL":
+        st.error(f"🚫 **CRITICAL FAIL** ({display_score}) - {summary}")
+    else:
+        st.error(f"❌ **SKIP** ({display_score}) - {summary}")
 
     # Sentence-based results in 2 columns - compact and clear
-    num_phases = len(phases)
     col1, col2 = st.columns(2)
 
     for idx, phase in enumerate(phases):
@@ -1221,7 +1241,8 @@ def display_results(results, llm_tested, test_prompt, response=None, template_na
         critical = phase.get("critical", False)
 
         icon = {"PASS": "✅", "CONCERN": "⚠️", "FAIL": "❌"}.get(status, "❓")
-        crit = "🚨" if critical else ""
+        # Only show 🚨 for FAILED critical tasks
+        crit = " 🚨CRIT" if critical and status == "FAIL" else ""
 
         # Truncate reason to fit on one line
         short_reason = reason[:80] + "..." if len(reason) > 80 else reason
