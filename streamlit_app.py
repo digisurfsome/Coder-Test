@@ -1306,6 +1306,10 @@ def main():
     /* Compact buttons */
     .stButton button { padding: 0.2rem 0.5rem !important; font-size: 11px !important; }
 
+    /* Green Evaluate button */
+    .stButton button[kind="primary"] { background-color: #22c55e !important; border-color: #22c55e !important; }
+    .stButton button[kind="primary"]:hover { background-color: #16a34a !important; border-color: #16a34a !important; }
+
     /* Tighter columns */
     [data-testid="column"] { padding: 0.1rem !important; }
 
@@ -1457,7 +1461,7 @@ def main():
         st.markdown("**📊 Evaluate**")
 
         # Paste area - 2 lines, auto-evaluates when content changes
-        full_exchange = st.text_area("Paste Q&A (auto-evaluates)", value=st.session_state.pasted_text, height=68,
+        full_exchange = st.text_area("Paste Q&A (auto-evaluates)", value=st.session_state.pasted_text, height=40,
             placeholder="Paste your test Q&A here - evaluation starts automatically!", key="paste_area")
         if full_exchange != st.session_state.pasted_text:
             st.session_state.pasted_text = full_exchange
@@ -1482,6 +1486,7 @@ def main():
             else:
                 st.session_state.show_paste_area = False
                 text_to_eval = st.session_state.pasted_text
+                st.session_state.pasted_text = ""  # Clear after grabbing content
                 with st.spinner("Evaluating..."):
                     try:
                         if provider == "OpenAI":
