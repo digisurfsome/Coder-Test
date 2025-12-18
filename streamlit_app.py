@@ -1444,23 +1444,14 @@ def main():
     with col_eval:
         st.markdown("**📊 Evaluate**")
 
-        # Paste zone
-        paste_html = paste_and_evaluate_button()
-        st.components.v1.html(paste_html, height=40)
-
-        # Show what's pasted (1-sentence preview)
-        if st.session_state.pasted_text:
-            preview_text = st.session_state.pasted_text[:80].replace('\n', ' ')
-            st.success(f"📋 Pasted: {preview_text}...")
-
-        # Manual paste fallback (always available, collapsed)
-        with st.expander("📋 Manual paste (if right-click fails)", expanded=not st.session_state.pasted_text):
-            full_exchange = st.text_area("", value=st.session_state.pasted_text, height=100,
-                placeholder="Ctrl+V here - auto-evaluates!", key="paste_area", label_visibility="collapsed")
-            if full_exchange != st.session_state.pasted_text:
-                st.session_state.pasted_text = full_exchange
-                st.session_state.auto_evaluate = True  # Auto-trigger evaluation
-                st.rerun()
+        # Paste area - auto-evaluates when content changes
+        full_exchange = st.text_area("Paste test Q&A here (auto-evaluates)", value=st.session_state.pasted_text, height=120,
+            placeholder="Ctrl+V your test exchange here - evaluation starts automatically!", key="paste_area")
+        if full_exchange != st.session_state.pasted_text:
+            st.session_state.pasted_text = full_exchange
+            if full_exchange:  # Only auto-eval if there's content
+                st.session_state.auto_evaluate = True
+            st.rerun()
 
         # Auto-evaluate if triggered
         should_evaluate = st.session_state.get('auto_evaluate', False) and st.session_state.pasted_text
