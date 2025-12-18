@@ -1231,7 +1231,7 @@ def display_results(results, llm_tested, test_prompt, response=None, template_na
     else:
         st.error(f"❌ **SKIP** ({display_score}) - {summary}")
 
-    # Sentence-based results in 2 columns - compact and clear
+    # Results in 2 columns with color-coded backgrounds - full sentences
     col1, col2 = st.columns(2)
 
     for idx, phase in enumerate(phases):
@@ -1240,17 +1240,18 @@ def display_results(results, llm_tested, test_prompt, response=None, template_na
         reason = phase.get("reason", "")
         critical = phase.get("critical", False)
 
-        icon = {"PASS": "✅", "CONCERN": "⚠️", "FAIL": "❌"}.get(status, "❓")
-        # Only show 🚨 for FAILED critical tasks
-        crit = " 🚨CRIT" if critical and status == "FAIL" else ""
+        # Color coding: green=PASS, yellow=CONCERN, red=FAIL
+        bg_color = {"PASS": "#1a3d1a", "CONCERN": "#3d3d1a", "FAIL": "#3d1a1a"}.get(status, "#1a1a1a")
+        border_color = {"PASS": "#4CAF50", "CONCERN": "#FFC107", "FAIL": "#f44336"}.get(status, "#666")
+        icon = {"PASS": "🟢", "CONCERN": "🟡", "FAIL": "🔴"}.get(status, "⚪")
+        crit = " 🚨" if critical and status == "FAIL" else ""
 
-        # Truncate reason to fit on one line
-        short_reason = reason[:80] + "..." if len(reason) > 80 else reason
-        line = f"{icon} **{name}**{crit}: {short_reason}"
-
-        # Alternate between columns
+        # Full sentence - no truncation
         with col1 if idx % 2 == 0 else col2:
-            st.markdown(f"<div style='font-size:11px; margin:1px 0; line-height:1.3;'>{line}</div>", unsafe_allow_html=True)
+            st.markdown(f"""<div style='background:{bg_color}; border-left:3px solid {border_color};
+                padding:6px 8px; margin:4px 0; border-radius:4px; font-size:11px;'>
+                {icon} <b>{name}</b>{crit}: {reason}
+            </div>""", unsafe_allow_html=True)
 
     # Save to history
     history_entry = {
@@ -1455,22 +1456,25 @@ def main():
     with col_eval:
         st.markdown("**📊 Evaluate**")
 
-        # Paste area - auto-evaluates when content changes
-        full_exchange = st.text_area("Paste Q&A (auto-evaluates)", value=st.session_state.pasted_text, height=50,
-            placeholder="Ctrl+V here - auto-evaluates!", key="paste_area")
+        # Paste area - 2 lines, auto-evaluates when content changes
+        full_exchange = st.text_area("Paste Q&A (auto-evaluates)", value=st.session_state.pasted_text, height=68,
+            placeholder="Paste your test Q&A here - evaluation starts automatically!", key="paste_area")
         if full_exchange != st.session_state.pasted_text:
             st.session_state.pasted_text = full_exchange
             if full_exchange:  # Only auto-eval if there's content
                 st.session_state.auto_evaluate = True
             st.rerun()
 
-        # Auto-evaluate if triggered
+        # Auto-evaluate if triggered by paste
         should_evaluate = st.session_state.get('auto_evaluate', False) and st.session_state.pasted_text
         if should_evaluate:
             st.session_state.auto_evaluate = False
 
-        # Evaluate button
-        if should_evaluate or st.button("🔍 Evaluate", type="primary", disabled=not st.session_state.pasted_text or not api_key, use_container_width=True):
+        # Only show button as backup (auto-eval handles most cases)
+        if not should_evaluate:
+            should_evaluate = st.button("🔍 Evaluate", type="primary", disabled=not st.session_state.pasted_text or not api_key, use_container_width=True)
+
+        if should_evaluate:
             if not api_key:
                 st.error("Need API key")
             elif not st.session_state.pasted_text:
