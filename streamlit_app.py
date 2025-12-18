@@ -1210,36 +1210,26 @@ def display_results(results, llm_tested, test_prompt, response=None, template_na
     else:
         st.error(f"❌ **SKIP** ({score}/7) - {summary}")
 
-    # Result cards - 4 columns, wrap to 2 rows for 7 items
+    # Sentence-based results in 2 columns - compact and clear
     num_phases = len(phases)
-    cols_per_row = 4
+    col1, col2 = st.columns(2)
 
-    for row_start in range(0, num_phases, cols_per_row):
-        cols = st.columns(cols_per_row)
-        for i, col in enumerate(cols):
-            phase_idx = row_start + i
-            if phase_idx < num_phases:
-                phase = phases[phase_idx]
-                status = phase.get("status", "?")
-                name = phase.get("name", f"Task {phase_idx+1}")
-                reason = phase.get("reason", "")
-                critical = phase.get("critical", False)
+    for idx, phase in enumerate(phases):
+        status = phase.get("status", "?")
+        name = phase.get("name", f"Task {idx+1}")
+        reason = phase.get("reason", "")
+        critical = phase.get("critical", False)
 
-                icon = {"PASS": "✅", "CONCERN": "⚠️", "FAIL": "❌"}.get(status, "?")
-                bg_color = {"PASS": "#1a2e1a", "CONCERN": "#2e2a1a", "FAIL": "#2e1a1a"}.get(status, "#1a1a2e")
-                border_color = {"PASS": "#4CAF50", "CONCERN": "#FF9800", "FAIL": "#f44336"}.get(status, "#666")
+        icon = {"PASS": "✅", "CONCERN": "⚠️", "FAIL": "❌"}.get(status, "❓")
+        crit = "🚨" if critical else ""
 
-                # Shorten name for card title
-                short_name = name[:10] if len(name) > 10 else name
-                crit_mark = "🚨" if critical else ""
+        # Truncate reason to fit on one line
+        short_reason = reason[:80] + "..." if len(reason) > 80 else reason
+        line = f"{icon} **{name}**{crit}: {short_reason}"
 
-                with col:
-                    st.markdown(f"""
-                    <div style="background:{bg_color}; border:1px solid {border_color}; border-radius:4px; padding:4px 6px; margin:2px 0; font-size:10px;">
-                        <div style="font-weight:bold;">{icon} {short_name}{crit_mark}</div>
-                        <div style="color:#aaa; font-size:9px; line-height:1.2;">{reason[:60]}{'...' if len(reason)>60 else ''}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+        # Alternate between columns
+        with col1 if idx % 2 == 0 else col2:
+            st.markdown(f"<div style='font-size:11px; margin:1px 0; line-height:1.3;'>{line}</div>", unsafe_allow_html=True)
 
     # Save to history
     history_entry = {
@@ -1445,8 +1435,8 @@ def main():
         st.markdown("**📊 Evaluate**")
 
         # Paste area - auto-evaluates when content changes
-        full_exchange = st.text_area("Paste test Q&A here (auto-evaluates)", value=st.session_state.pasted_text, height=120,
-            placeholder="Ctrl+V your test exchange here - evaluation starts automatically!", key="paste_area")
+        full_exchange = st.text_area("Paste Q&A (auto-evaluates)", value=st.session_state.pasted_text, height=50,
+            placeholder="Ctrl+V here - auto-evaluates!", key="paste_area")
         if full_exchange != st.session_state.pasted_text:
             st.session_state.pasted_text = full_exchange
             if full_exchange:  # Only auto-eval if there's content
