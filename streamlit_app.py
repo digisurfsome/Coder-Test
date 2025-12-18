@@ -1253,6 +1253,10 @@ def display_results(results, llm_tested, test_prompt, response=None, template_na
     add_to_history(history_entry, test_prompt=test_prompt, response=response)
     st.caption("💾 Saved")
 
+    # Auto-clear for next test
+    st.session_state.pasted_text = ""
+    st.session_state.show_paste_area = True
+
 
 def main():
     # Aggressive CSS to tighten everything up - minimal padding, smaller text
@@ -1452,9 +1456,10 @@ def main():
         # Manual paste fallback (always available, collapsed)
         with st.expander("📋 Manual paste (if right-click fails)", expanded=not st.session_state.pasted_text):
             full_exchange = st.text_area("", value=st.session_state.pasted_text, height=100,
-                placeholder="Ctrl+V here as fallback", key="paste_area", label_visibility="collapsed")
+                placeholder="Ctrl+V here - auto-evaluates!", key="paste_area", label_visibility="collapsed")
             if full_exchange != st.session_state.pasted_text:
                 st.session_state.pasted_text = full_exchange
+                st.session_state.auto_evaluate = True  # Auto-trigger evaluation
                 st.rerun()
 
         # Auto-evaluate if triggered
