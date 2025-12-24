@@ -1306,6 +1306,10 @@ def main():
     /* Compact buttons */
     .stButton button { padding: 0.2rem 0.5rem !important; font-size: 11px !important; }
 
+    /* Orange Evaluate button */
+    .stButton button[kind="primary"] { background-color: #f97316 !important; border-color: #f97316 !important; }
+    .stButton button[kind="primary"]:hover { background-color: #ea580c !important; border-color: #ea580c !important; }
+
     /* Tighter columns */
     [data-testid="column"] { padding: 0.1rem !important; }
 
@@ -1325,6 +1329,22 @@ def main():
     .stSelectbox { margin-bottom: 0 !important; }
     .stSelectbox label { font-size: 11px !important; }
     </style>
+    """, unsafe_allow_html=True)
+
+    # JavaScript to auto-trigger on paste (blur triggers Streamlit's change detection)
+    st.markdown("""
+    <script>
+    document.addEventListener('paste', function(e) {
+        setTimeout(function() {
+            var textareas = document.querySelectorAll('textarea');
+            textareas.forEach(function(ta) {
+                if (ta.value && ta.value.length > 100) {
+                    ta.blur();
+                }
+            });
+        }, 100);
+    });
+    </script>
     """, unsafe_allow_html=True)
 
     # Initialize session state
@@ -1457,7 +1477,7 @@ def main():
         st.markdown("**📊 Evaluate**")
 
         # Paste area - 2 lines, auto-evaluates when content changes
-        full_exchange = st.text_area("Paste Q&A (auto-evaluates)", value=st.session_state.pasted_text, height=68,
+        full_exchange = st.text_area("Paste Q&A (auto-evaluates)", value=st.session_state.pasted_text, height=40,
             placeholder="Paste your test Q&A here - evaluation starts automatically!", key="paste_area")
         if full_exchange != st.session_state.pasted_text:
             st.session_state.pasted_text = full_exchange
@@ -1482,6 +1502,7 @@ def main():
             else:
                 st.session_state.show_paste_area = False
                 text_to_eval = st.session_state.pasted_text
+                st.session_state.pasted_text = ""  # Clear after grabbing content
                 with st.spinner("Evaluating..."):
                     try:
                         if provider == "OpenAI":
