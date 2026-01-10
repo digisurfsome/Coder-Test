@@ -1306,9 +1306,19 @@ def main():
     /* Compact buttons */
     .stButton button { padding: 0.2rem 0.5rem !important; font-size: 11px !important; }
 
-    /* Orange Evaluate button */
-    .stButton button[kind="primary"] { background-color: #f97316 !important; border-color: #f97316 !important; }
-    .stButton button[kind="primary"]:hover { background-color: #ea580c !important; border-color: #ea580c !important; }
+    /* White Evaluate button - bigger and more visible */
+    .stButton button[kind="primary"] {
+        background-color: #ffffff !important;
+        border-color: #ffffff !important;
+        color: #000000 !important;
+        font-size: 16px !important;
+        font-weight: 700 !important;
+        padding: 0.6rem 1.2rem !important;
+    }
+    .stButton button[kind="primary"]:hover {
+        background-color: #f0f0f0 !important;
+        border-color: #f0f0f0 !important;
+    }
 
     /* Tighter columns */
     [data-testid="column"] { padding: 0.1rem !important; }
@@ -1451,7 +1461,7 @@ def main():
     with col_create:
         st.markdown("**📝 Create**")
 
-        # Generate button
+        # Generate button - also clears the evaluate text box for quick paste
         if st.button("🎲 New", type="primary", use_container_width=True):
             new_prompt, new_criteria, variants = generate_randomized_test()
             st.session_state.current_test_prompt = new_prompt
@@ -1459,6 +1469,7 @@ def main():
             st.session_state.test_variants = variants
             st.session_state.generated_test = new_prompt
             st.session_state.test_is_fresh = True
+            st.session_state.pasted_text = ""  # Clear evaluate box for quick paste
             st.rerun()
 
         # Copy button
