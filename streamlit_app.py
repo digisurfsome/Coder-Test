@@ -1306,18 +1306,18 @@ def main():
     /* Compact buttons */
     .stButton button { padding: 0.2rem 0.5rem !important; font-size: 11px !important; }
 
-    /* White Evaluate button - bigger and more visible */
+    /* Evaluate button - white text, bigger and more visible */
     .stButton button[kind="primary"] {
-        background-color: #ffffff !important;
-        border-color: #ffffff !important;
-        color: #000000 !important;
+        background-color: #f97316 !important;
+        border-color: #f97316 !important;
+        color: #ffffff !important;
         font-size: 16px !important;
         font-weight: 700 !important;
         padding: 0.6rem 1.2rem !important;
     }
     .stButton button[kind="primary"]:hover {
-        background-color: #f0f0f0 !important;
-        border-color: #f0f0f0 !important;
+        background-color: #ea580c !important;
+        border-color: #ea580c !important;
     }
 
     /* Tighter columns */
