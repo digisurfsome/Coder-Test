@@ -1469,7 +1469,9 @@ def main():
             st.session_state.test_variants = variants
             st.session_state.generated_test = new_prompt
             st.session_state.test_is_fresh = True
-            st.session_state.pasted_text = ""  # Clear evaluate box for quick paste
+            # Clear evaluate text box for quick paste (both state and widget key)
+            st.session_state.pasted_text = ""
+            st.session_state.paste_area = ""
             st.rerun()
 
         # Copy button
