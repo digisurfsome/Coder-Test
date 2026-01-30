@@ -1433,12 +1433,14 @@ def main():
             st.error(f"Decode error: {e}")
             st.query_params.clear()
 
-    # Title row with Templates, History, Edit buttons
-    title_col, edit_col, templates_col, history_col = st.columns([4, 1, 1, 1])
+    # Title row with Edit, Criteria, Templates, History buttons
+    title_col, edit_col, criteria_col, templates_col, history_col = st.columns([3, 1, 1, 1, 1])
     with title_col:
         st.markdown("## 🧠 AI Tester")
     with edit_col:
         show_edit = st.button("✏️ Edit", use_container_width=True)
+    with criteria_col:
+        show_criteria = st.button("📋 Criteria", use_container_width=True)
     with templates_col:
         show_templates = st.button("📁 Templ", use_container_width=True)
     with history_col:
@@ -1467,9 +1469,15 @@ def main():
             copy_html = copy_button_with_js(test_to_copy, "main_copy", st.session_state.test_is_fresh)
             st.components.v1.html(copy_html, height=45)
 
-            # 1-sentence preview (confirmation something was generated)
-            preview = st.session_state.current_test_prompt[:80].replace('\n', ' ')
-            with st.expander(f"📄 {preview}...", expanded=False):
+            # Show which variant was selected (proof of randomization)
+            variants = st.session_state.test_variants
+            st.caption(f"🎯 {variants.get('fake_tech', '?')[:20]}...")
+
+            # Full preview in expander
+            with st.expander("📄 View full test", expanded=False):
+                st.markdown(f"**Fake Tech:** {variants.get('fake_tech', 'N/A')}")
+                st.markdown(f"**Contradiction:** {variants.get('contradiction', 'N/A')}")
+                st.markdown(f"**Function:** {variants.get('function', 'N/A')}")
                 st.code(st.session_state.current_test_prompt, language="markdown")
 
     # RIGHT COLUMN: Evaluate (main focus)
@@ -1530,6 +1538,30 @@ def main():
             st.session_state.generated_test = edited_prompt
             st.success("Saved!")
             st.rerun()
+
+    # Criteria popup (only when button clicked)
+    if show_criteria:
+        st.markdown("---")
+        st.markdown("#### 📋 Current Evaluation Criteria")
+
+        # Show which variants are currently selected
+        if 'test_variants' in st.session_state:
+            variants = st.session_state.test_variants
+            st.info(f"**Current Test Variants:**\n- Fake Tech: {variants.get('fake_tech', 'N/A')}\n- Contradiction: {variants.get('contradiction', 'N/A')}\n- Function: {variants.get('function', 'N/A')}")
+        else:
+            st.warning("No test generated yet. Click '🎲 New' to generate a randomized test.")
+
+        # Show the evaluation criteria
+        st.markdown("**Evaluation Rules:**")
+        st.code(st.session_state.current_eval_criteria, language="markdown")
+
+        # Option to edit criteria
+        with st.expander("✏️ Edit Criteria"):
+            new_criteria = st.text_area("Modify criteria:", value=st.session_state.current_eval_criteria, height=200)
+            if st.button("💾 Save Criteria"):
+                st.session_state.current_eval_criteria = new_criteria
+                st.success("Criteria updated!")
+                st.rerun()
 
     # Templates popup (only when button clicked)
     if show_templates:
