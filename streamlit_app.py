@@ -1347,13 +1347,17 @@ def main():
     </script>
     """, unsafe_allow_html=True)
 
-    # Initialize session state
+    # Initialize session state with randomized test
     if 'current_test_prompt' not in st.session_state:
-        st.session_state.current_test_prompt = BASE_PROMPT_TEMPLATE.replace("{num_phases}", "7")
+        # Generate a fresh randomized test on first load
+        prompt, criteria, variants = generate_randomized_test()
+        st.session_state.current_test_prompt = prompt
+        st.session_state.current_eval_criteria = criteria
+        st.session_state.test_variants = variants
     if 'current_eval_criteria' not in st.session_state:
         st.session_state.current_eval_criteria = DEFAULT_EVALUATION_CRITERIA
     if 'test_is_fresh' not in st.session_state:
-        st.session_state.test_is_fresh = False
+        st.session_state.test_is_fresh = True  # Fresh on initial load now
     if 'pasted_text' not in st.session_state:
         st.session_state.pasted_text = ""
     if 'show_paste_area' not in st.session_state:
