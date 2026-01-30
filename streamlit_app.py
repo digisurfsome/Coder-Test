@@ -1815,30 +1815,6 @@ def main():
             st.success("Saved!")
             st.rerun()
 
-    # Criteria popup (only when button clicked)
-    if show_criteria:
-        st.markdown("---")
-        st.markdown("#### 📋 Current Evaluation Criteria")
-
-        # Show which variants are currently selected
-        if 'test_variants' in st.session_state:
-            variants = st.session_state.test_variants
-            st.info(f"**Current Test Variants:**\n- Fake Tech: {variants.get('fake_tech', 'N/A')}\n- Contradiction: {variants.get('contradiction', 'N/A')}\n- Function: {variants.get('function', 'N/A')}")
-        else:
-            st.warning("No test generated yet. Click '🎲 New' to generate a randomized test.")
-
-        # Show the evaluation criteria
-        st.markdown("**Evaluation Rules:**")
-        st.code(st.session_state.current_eval_criteria, language="markdown")
-
-        # Option to edit criteria
-        with st.expander("✏️ Edit Criteria"):
-            new_criteria = st.text_area("Modify criteria:", value=st.session_state.current_eval_criteria, height=200)
-            if st.button("💾 Save Criteria"):
-                st.session_state.current_eval_criteria = new_criteria
-                st.success("Criteria updated!")
-                st.rerun()
-
     # Templates popup (only when button clicked)
     if show_templates:
         st.markdown("---")
