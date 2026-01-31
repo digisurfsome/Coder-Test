@@ -1306,9 +1306,19 @@ def main():
     /* Compact buttons */
     .stButton button { padding: 0.2rem 0.5rem !important; font-size: 11px !important; }
 
-    /* Orange Evaluate button */
-    .stButton button[kind="primary"] { background-color: #f97316 !important; border-color: #f97316 !important; }
-    .stButton button[kind="primary"]:hover { background-color: #ea580c !important; border-color: #ea580c !important; }
+    /* Large New and Evaluate buttons - 3x size */
+    .stButton button[kind="primary"] {
+        background-color: #f97316 !important;
+        border-color: #f97316 !important;
+        font-size: 33px !important;
+        font-weight: 700 !important;
+        color: #ffffff !important;
+        padding: 12px 24px !important;
+    }
+    .stButton button[kind="primary"]:hover {
+        background-color: #ea580c !important;
+        border-color: #ea580c !important;
+    }
 
     /* Tighter columns */
     [data-testid="column"] { padding: 0.1rem !important; }
