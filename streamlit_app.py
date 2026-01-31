@@ -1546,12 +1546,30 @@ def main():
     .streamlit-expanderHeader { font-size: 11px !important; padding: 0.2rem !important; }
     .streamlit-expanderContent { padding: 0.2rem !important; }
 
-    /* Compact buttons */
-    .stButton button { padding: 0.2rem 0.5rem !important; font-size: 11px !important; }
+    /* Main action buttons - match Copy button size */
+    .stButton button {
+        padding: 12px 24px !important;
+        font-size: 16px !important;
+        font-weight: 600 !important;
+        opacity: 1 !important;
+        filter: none !important;
+    }
 
-    /* Orange Evaluate button */
-    .stButton button[kind="primary"] { background-color: #f97316 !important; border-color: #f97316 !important; }
-    .stButton button[kind="primary"]:hover { background-color: #ea580c !important; border-color: #ea580c !important; }
+    /* Orange primary buttons (New, Evaluate) - solid and clear */
+    .stButton button[kind="primary"] {
+        background-color: #f97316 !important;
+        border-color: #f97316 !important;
+        color: white !important;
+        opacity: 1 !important;
+    }
+    .stButton button[kind="primary"]:hover {
+        background-color: #ea580c !important;
+        border-color: #ea580c !important;
+    }
+    .stButton button[kind="primary"]:disabled {
+        background-color: #f97316 !important;
+        opacity: 0.6 !important;
+    }
 
     /* Tighter columns */
     [data-testid="column"] { padding: 0.1rem !important; }
