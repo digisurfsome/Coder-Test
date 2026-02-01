@@ -1469,8 +1469,9 @@ def main():
             st.session_state.test_variants = variants
             st.session_state.generated_test = new_prompt
             st.session_state.test_is_fresh = True
-            # Clear the paste area for the next test
+            # Clear the paste area for the next test (must clear widget key directly)
             st.session_state.pasted_text = ""
+            st.session_state.paste_area = ""
             st.session_state.show_paste_area = True
             st.rerun()
 
