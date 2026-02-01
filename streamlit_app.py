@@ -1461,7 +1461,7 @@ def main():
     with col_create:
         st.markdown("**📝 Create**")
 
-        # Generate button
+        # Generate button - also clears paste area for fresh input
         if st.button("🎲 New", type="primary", use_container_width=True):
             new_prompt, new_criteria, variants = generate_randomized_test()
             st.session_state.current_test_prompt = new_prompt
@@ -1469,6 +1469,9 @@ def main():
             st.session_state.test_variants = variants
             st.session_state.generated_test = new_prompt
             st.session_state.test_is_fresh = True
+            # Clear the paste area for the next test
+            st.session_state.pasted_text = ""
+            st.session_state.show_paste_area = True
             st.rerun()
 
         # Copy button
