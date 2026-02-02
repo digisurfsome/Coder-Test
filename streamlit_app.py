@@ -1306,9 +1306,19 @@ def main():
     /* Compact buttons */
     .stButton button { padding: 0.2rem 0.5rem !important; font-size: 11px !important; }
 
-    /* Orange Evaluate button */
-    .stButton button[kind="primary"] { background-color: #f97316 !important; border-color: #f97316 !important; }
-    .stButton button[kind="primary"]:hover { background-color: #ea580c !important; border-color: #ea580c !important; }
+    /* Large New and Evaluate buttons - 3x size */
+    .stButton button[kind="primary"] {
+        background-color: #f97316 !important;
+        border-color: #f97316 !important;
+        font-size: 33px !important;
+        font-weight: 700 !important;
+        color: #ffffff !important;
+        padding: 12px 24px !important;
+    }
+    .stButton button[kind="primary"]:hover {
+        background-color: #ea580c !important;
+        border-color: #ea580c !important;
+    }
 
     /* Tighter columns */
     [data-testid="column"] { padding: 0.1rem !important; }
@@ -1360,6 +1370,8 @@ def main():
         st.session_state.show_paste_area = True
     if 'auto_evaluate' not in st.session_state:
         st.session_state.auto_evaluate = False
+    if 'paste_area_version' not in st.session_state:
+        st.session_state.paste_area_version = 0
 
     # Sidebar - compact config
     with st.sidebar:
@@ -1451,7 +1463,7 @@ def main():
     with col_create:
         st.markdown("**📝 Create**")
 
-        # Generate button
+        # Generate button - also clears paste area for fresh input
         if st.button("🎲 New", type="primary", use_container_width=True):
             new_prompt, new_criteria, variants = generate_randomized_test()
             st.session_state.current_test_prompt = new_prompt
@@ -1459,6 +1471,10 @@ def main():
             st.session_state.test_variants = variants
             st.session_state.generated_test = new_prompt
             st.session_state.test_is_fresh = True
+            # Clear paste area by incrementing key version (forces new widget)
+            st.session_state.pasted_text = ""
+            st.session_state.paste_area_version = st.session_state.get('paste_area_version', 0) + 1
+            st.session_state.show_paste_area = True
             st.rerun()
 
         # Copy button
@@ -1477,8 +1493,9 @@ def main():
         st.markdown("**📊 Evaluate**")
 
         # Paste area - 2 lines, auto-evaluates when content changes
+        paste_key = f"paste_area_{st.session_state.get('paste_area_version', 0)}"
         full_exchange = st.text_area("Paste Q&A (auto-evaluates)", value=st.session_state.pasted_text, height=40,
-            placeholder="Paste your test Q&A here - evaluation starts automatically!", key="paste_area")
+            placeholder="Paste your test Q&A here - evaluation starts automatically!", key=paste_key)
         if full_exchange != st.session_state.pasted_text:
             st.session_state.pasted_text = full_exchange
             if full_exchange:  # Only auto-eval if there's content
