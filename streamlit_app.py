@@ -1469,10 +1469,9 @@ def main():
             st.session_state.test_variants = variants
             st.session_state.generated_test = new_prompt
             st.session_state.test_is_fresh = True
-            # Clear the paste area - must delete widget key to force reinit from value
+            # Clear paste area by incrementing key version (forces new widget)
             st.session_state.pasted_text = ""
-            if 'paste_area' in st.session_state:
-                del st.session_state['paste_area']
+            st.session_state.paste_area_version = st.session_state.get('paste_area_version', 0) + 1
             st.session_state.show_paste_area = True
             st.rerun()
 
@@ -1492,8 +1491,9 @@ def main():
         st.markdown("**📊 Evaluate**")
 
         # Paste area - 2 lines, auto-evaluates when content changes
+        paste_key = f"paste_area_{st.session_state.get('paste_area_version', 0)}"
         full_exchange = st.text_area("Paste Q&A (auto-evaluates)", value=st.session_state.pasted_text, height=40,
-            placeholder="Paste your test Q&A here - evaluation starts automatically!", key="paste_area")
+            placeholder="Paste your test Q&A here - evaluation starts automatically!", key=paste_key)
         if full_exchange != st.session_state.pasted_text:
             st.session_state.pasted_text = full_exchange
             if full_exchange:  # Only auto-eval if there's content
