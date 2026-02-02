@@ -1370,6 +1370,8 @@ def main():
         st.session_state.show_paste_area = True
     if 'auto_evaluate' not in st.session_state:
         st.session_state.auto_evaluate = False
+    if 'paste_area_version' not in st.session_state:
+        st.session_state.paste_area_version = 0
 
     # Sidebar - compact config
     with st.sidebar:
